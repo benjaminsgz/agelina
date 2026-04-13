@@ -17,6 +17,10 @@
     <name>threadpool-auth-demo</name>
     <description>Spring Boot demo application for the threadpool framework.</description>
 
+    <properties>
+        <maven.deploy.skip>true</maven.deploy.skip>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>com.yeven</groupId>
