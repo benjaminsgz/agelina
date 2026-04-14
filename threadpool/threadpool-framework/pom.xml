@@ -17,6 +17,14 @@
     <name>threadpool-framework</name>
     <description>Core framework module for async execution and pipelines.</description>
 
+    <dependencies>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
     <build>
         <plugins>
             <plugin>

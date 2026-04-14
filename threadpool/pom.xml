@@ -18,6 +18,7 @@
         <module>threadpool-spring-boot-autoconfigure</module>
         <module>threadpool-spring-boot-starter</module>
         <module>threadpool-auth-demo</module>
+        <module>threadpool-dag-demo</module>
     </modules>
 
     <scm>

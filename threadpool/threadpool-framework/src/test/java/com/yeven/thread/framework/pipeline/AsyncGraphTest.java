@@ -1,0 +1,134 @@
+package com.yeven.thread.framework.pipeline;
+
+import com.yeven.thread.framework.executor.DefaultExecutionDispatcher;
+import com.yeven.thread.framework.executor.ExecutionMode;
+import com.yeven.thread.framework.executor.ExecutorRegistry;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertIterableEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+class AsyncGraphTest {
+
+    private final ExecutorService ioExecutor = Executors.newFixedThreadPool(2);
+    private final ExecutorService cpuExecutor = Executors.newFixedThreadPool(2);
+
+    @AfterEach
+    void tearDown() {
+        ioExecutor.shutdownNow();
+        cpuExecutor.shutdownNow();
+    }
+
+    @Test
+    void shouldExecuteParallelBranchesAndJoinResults() {
+        AsyncStepFactory stepFactory = stepFactory();
+        Set<String> threadNames = ConcurrentHashMap.newKeySet();
+        AtomicInteger sequence = new AtomicInteger();
+
+        AsyncGraph<String> graph = new AsyncGraphBuilder<String>(stepFactory)
+                .addRootStep("start", ExecutionMode.DIRECT, value -> value + "-start")
+                .addStep("left", "start", ExecutionMode.IO, value -> {
+                    threadNames.add(Thread.currentThread().getName());
+                    sleep(150);
+                    return value + "-left-" + sequence.incrementAndGet();
+                })
+                .addStep("right", "start", ExecutionMode.CPU, value -> {
+                    threadNames.add(Thread.currentThread().getName());
+                    sleep(150);
+                    return value + "-right-" + sequence.incrementAndGet();
+                })
+                .addJoinStep(
+                        "join",
+                        List.of("left", "right"),
+                        ExecutionMode.DIRECT,
+                        results -> results.get(0) + "|" + results.get(1)
+                )
+                .build();
+
+        String result = graph.execute("seed").join();
+
+        assertTrue(result.startsWith("seed-start-left-") || result.startsWith("seed-start-right-"));
+        assertTrue(result.contains("|"));
+        assertEquals(List.of("join"), graph.getTerminalNodes());
+        assertEquals(2, threadNames.size());
+    }
+
+    @Test
+    void shouldReturnAllNodeResults() {
+        AsyncGraph<Integer> graph = new AsyncGraphBuilder<Integer>(stepFactory())
+                .addRootStep("root", ExecutionMode.DIRECT, value -> value + 1)
+                .addStep("double", "root", ExecutionMode.DIRECT, value -> value * 2)
+                .addStep("triple", "root", ExecutionMode.DIRECT, value -> value * 3)
+                .build();
+
+        Map<String, Integer> results = graph.executeAll(2).join();
+
+        assertEquals(3, results.get("root"));
+        assertEquals(6, results.get("double"));
+        assertEquals(9, results.get("triple"));
+        assertIterableEquals(List.of("double", "triple"), graph.getTerminalNodes());
+    }
+
+    @Test
+    void shouldRejectMultipleTerminalNodesForSingleExecute() {
+        AsyncGraph<Integer> graph = new AsyncGraphBuilder<Integer>(stepFactory())
+                .addRootStep("root", ExecutionMode.DIRECT, value -> value)
+                .addStep("left", "root", ExecutionMode.DIRECT, value -> value + 1)
+                .addStep("right", "root", ExecutionMode.DIRECT, value -> value + 2)
+                .build();
+
+        IllegalStateException exception = assertThrows(IllegalStateException.class, () -> graph.execute(1));
+
+        assertTrue(exception.getMessage().contains("multiple terminal nodes"));
+    }
+
+    @Test
+    void shouldRejectCycles() {
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
+                new AsyncGraphBuilder<Integer>(stepFactory())
+                        .addNode(new AsyncGraphNodeDefinition<>(
+                                "a",
+                                ExecutionMode.DIRECT,
+                                List.of("b"),
+                                GraphNodeInput::getOnlyDependency,
+                                value -> value
+                        ))
+                        .addNode(new AsyncGraphNodeDefinition<>(
+                                "b",
+                                ExecutionMode.DIRECT,
+                                List.of("a"),
+                                GraphNodeInput::getOnlyDependency,
+                                value -> value
+                        ))
+                        .build()
+        );
+
+        assertTrue(exception.getMessage().contains("Cycle detected"));
+    }
+
+    private AsyncStepFactory stepFactory() {
+        return new AsyncStepFactory(new DefaultExecutionDispatcher(new ExecutorRegistry(Map.of(
+                ExecutionMode.IO, ioExecutor,
+                ExecutionMode.CPU, cpuExecutor
+        ))));
+    }
+
+    private static void sleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while waiting", e);
+        }
+    }
+}
