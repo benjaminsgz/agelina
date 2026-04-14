@@ -1,0 +1,15 @@
+Running 30s test @ http://threadpool-auth-demo:8080/auth/login
+  8 threads and 10000 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     8.03s     2.16s   19.79s    83.91%
+    Req/Sec    70.46    191.15     1.59k    93.33%
+  Latency Distribution
+     50%    8.74s 
+     75%    9.03s 
+     90%    9.22s 
+     99%   14.98s 
+  6571 requests in 30.12s, 0.89MB read
+  Socket errors: connect 0, read 0, write 0, timeout 1107
+  Non-2xx or 3xx responses: 6531
+Requests/sec:    218.15
+Transfer/sec:     30.21KB
