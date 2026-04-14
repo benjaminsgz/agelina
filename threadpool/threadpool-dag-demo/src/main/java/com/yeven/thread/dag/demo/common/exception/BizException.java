@@ -1,4 +1,4 @@
-﻿package com.yeven.thread.dag.demo.common.exception;
+package com.yeven.thread.dag.demo.common.exception;
 
 public class BizException extends RuntimeException {
 

@@ -87,25 +87,44 @@ public class AsyncGraph<C> {
             C initialContext,
             Map<String, CompletableFuture<C>> cache
     ) {
-        return cache.computeIfAbsent(nodeName, ignored -> {
-            GraphNode<C> node = getNode(nodeName);
-            List<CompletableFuture<C>> dependencyFutures = new ArrayList<>();
-            for (String dependency : node.dependencies()) {
-                dependencyFutures.add(executeNode(dependency, initialContext, cache));
-            }
+        CompletableFuture<C> cached = cache.get(nodeName);
+        if (cached != null) {
+            return cached;
+        }
 
-            CompletableFuture<?>[] allDependencies = dependencyFutures.toArray(CompletableFuture[]::new);
-            return CompletableFuture.allOf(allDependencies)
-                    .thenCompose(unused -> {
-                        Map<String, C> dependencyResults = new LinkedHashMap<>();
-                        for (int i = 0; i < node.dependencies().size(); i++) {
-                            dependencyResults.put(node.dependencies().get(i), dependencyFutures.get(i).join());
-                        }
-                        GraphNodeInput<C> input = new GraphNodeInput<>(initialContext, dependencyResults);
-                        C resolvedInput = node.inputResolver().apply(input);
-                        return node.step().apply(resolvedInput);
-                    });
+        CompletableFuture<C> placeholder = new CompletableFuture<>();
+        CompletableFuture<C> existing = cache.putIfAbsent(nodeName, placeholder);
+        if (existing != null) {
+            return existing;
+        }
+
+        GraphNode<C> node = getNode(nodeName);
+        List<CompletableFuture<C>> dependencyFutures = new ArrayList<>();
+        for (String dependency : node.dependencies()) {
+            dependencyFutures.add(executeNode(dependency, initialContext, cache));
+        }
+
+        CompletableFuture<?>[] allDependencies = dependencyFutures.toArray(CompletableFuture[]::new);
+        CompletableFuture<C> computed = CompletableFuture.allOf(allDependencies)
+                .thenCompose(unused -> {
+                    Map<String, C> dependencyResults = new LinkedHashMap<>();
+                    for (int i = 0; i < node.dependencies().size(); i++) {
+                        dependencyResults.put(node.dependencies().get(i), dependencyFutures.get(i).join());
+                    }
+                    GraphNodeInput<C> input = new GraphNodeInput<>(initialContext, dependencyResults);
+                    C resolvedInput = node.inputResolver().apply(input);
+                    return node.step().apply(resolvedInput);
+                });
+
+        computed.whenComplete((result, error) -> {
+            if (error != null) {
+                placeholder.completeExceptionally(error);
+            } else {
+                placeholder.complete(result);
+            }
         });
+
+        return placeholder;
     }
 
     private GraphNode<C> getNode(String nodeName) {

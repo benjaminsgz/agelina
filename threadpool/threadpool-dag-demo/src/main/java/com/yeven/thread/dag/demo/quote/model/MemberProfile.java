@@ -1,4 +1,4 @@
-﻿package com.yeven.thread.dag.demo.quote.model;
+package com.yeven.thread.dag.demo.quote.model;
 
 public class MemberProfile {
 

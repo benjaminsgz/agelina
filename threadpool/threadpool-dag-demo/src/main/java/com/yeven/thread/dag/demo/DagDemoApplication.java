@@ -1,4 +1,4 @@
-﻿package com.yeven.thread.dag.demo;
+package com.yeven.thread.dag.demo;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

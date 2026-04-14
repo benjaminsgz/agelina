@@ -46,6 +46,9 @@
 - `AsyncGraphBuilder`：DAG 构建器
 - `AsyncGraphNodeDefinition`：DAG 节点定义
 - `GraphNodeInput`：节点输入与依赖结果视图
+- `AsyncGraphTemplate`：可复用子图模板
+- `AsyncGraphTemplateContext`：模板编排上下文
+- `AsyncGraphTemplateInstance`：模板实例引用句柄
 
 ### `threadpool-spring-boot-autoconfigure`
 
@@ -115,6 +118,7 @@ DAG 核心抽象：
 - 依赖节点完成后才会执行当前节点
 - 相互独立的节点可以并行运行
 - 支持显式汇聚节点
+- 支持子图复用与模板化编排
 - 支持检测缺失依赖与环依赖
 - 支持 `execute(...)` 获取单终点结果
 - 支持 `executeAll(...)` 获取所有节点结果
@@ -212,6 +216,18 @@ flowchart TD
 
 - 并行查询
 - 汇聚计算
+
+另外，这个 demo 现在还演示了“模板化编排”：
+
+- `ProductPricingTemplate`：封装商品加载与基础金额计算子图
+- `DiscountTemplate`：封装会员折扣与优惠券折扣子图
+- `QuoteFlowFactory` 通过 `addTemplate(...)` 将两个子图挂接到主图中
+
+这样做的好处是：
+
+- 相同结构的子图可以重复实例化
+- 通过命名空间隔离节点名，避免冲突
+- 通过绑定外部节点，把模板接到不同主图入口
 
 ### 关键代码位置
 

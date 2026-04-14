@@ -1,4 +1,4 @@
-﻿package com.yeven.thread.dag.demo.common.exception;
+package com.yeven.thread.dag.demo.common.exception;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -11,6 +11,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.bind.support.WebExchangeBindException;
+import org.springframework.web.server.ServerWebInputException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -27,6 +28,15 @@ public class GlobalExceptionHandler {
         return badRequest(e.getBindingResult().getFieldError() != null
                 ? e.getBindingResult().getFieldError().getDefaultMessage()
                 : "Validation failed");
+    }
+
+    @ExceptionHandler(ServerWebInputException.class)
+    public ResponseEntity<Map<String, Object>> handleServerWebInput(ServerWebInputException e) {
+        Throwable cause = e.getCause();
+        String message = cause != null && cause.getMessage() != null
+                ? cause.getMessage()
+                : e.getReason();
+        return badRequest(message != null ? message : "Failed to read request body");
     }
 
     @ExceptionHandler(BizException.class)

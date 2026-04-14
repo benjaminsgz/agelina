@@ -1,4 +1,4 @@
-﻿package com.yeven.thread.dag.demo.quote.dto;
+package com.yeven.thread.dag.demo.quote.dto;
 
 import java.math.BigDecimal;
 

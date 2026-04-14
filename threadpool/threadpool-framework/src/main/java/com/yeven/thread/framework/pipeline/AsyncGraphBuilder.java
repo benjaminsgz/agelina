@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Collections;
 import java.util.function.Function;
 
 /**
@@ -135,6 +136,50 @@ public class AsyncGraphBuilder<C> {
             throw new IllegalArgumentException("Duplicate node name: " + definition.getName());
         }
         return this;
+    }
+
+    /**
+     * Instantiates one reusable subgraph template under the given namespace.
+     *
+     * @param namespace template namespace prefix
+     * @param template subgraph template
+     * @return instance handle for referencing namespaced nodes
+     */
+    public AsyncGraphTemplateInstance<C> addTemplate(String namespace, AsyncGraphTemplate<C> template) {
+        return addTemplate(namespace, template, Collections.emptyMap());
+    }
+
+    /**
+     * Instantiates one reusable subgraph template under the given namespace and resolves the
+     * provided binding aliases to already-registered graph nodes.
+     *
+     * @param namespace template namespace prefix
+     * @param template subgraph template
+     * @param bindings alias to existing node name map
+     * @return instance handle for referencing namespaced nodes
+     */
+    public AsyncGraphTemplateInstance<C> addTemplate(
+            String namespace,
+            AsyncGraphTemplate<C> template,
+            Map<String, String> bindings
+    ) {
+        Objects.requireNonNull(template, "template");
+        AsyncGraphTemplateContext<C> context = new AsyncGraphTemplateContext<>(
+                this,
+                normalizeNamespace(namespace),
+                bindings == null ? Collections.emptyMap() : bindings
+        );
+        template.apply(context);
+        return context.instance();
+    }
+
+    private String normalizeNamespace(String namespace) {
+        Objects.requireNonNull(namespace, "namespace");
+        String trimmed = namespace.trim();
+        if (trimmed.isEmpty()) {
+            throw new IllegalArgumentException("namespace must not be blank");
+        }
+        return trimmed.endsWith(".") ? trimmed.substring(0, trimmed.length() - 1) : trimmed;
     }
 
     /**

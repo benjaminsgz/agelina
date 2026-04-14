@@ -116,6 +116,37 @@ class AsyncGraphTest {
         assertTrue(exception.getMessage().contains("Cycle detected"));
     }
 
+    @Test
+    void shouldReuseTemplateWithDifferentNamespaces() {
+        AsyncGraphTemplate<Integer> incrementTemplate = context ->
+                context.addStep("increment", "input", ExecutionMode.DIRECT, value -> value + 1);
+
+        AsyncGraphBuilder<Integer> builder = new AsyncGraphBuilder<Integer>(stepFactory())
+                .addRootStep("start", ExecutionMode.DIRECT, value -> value);
+
+        AsyncGraphTemplateInstance<Integer> left = builder.addTemplate(
+                "leftBranch",
+                incrementTemplate,
+                Map.of("input", "start")
+        );
+        AsyncGraphTemplateInstance<Integer> right = builder.addTemplate(
+                "rightBranch",
+                incrementTemplate,
+                Map.of("input", left.ref("increment"))
+        );
+
+        AsyncGraph<Integer> graph = builder
+                .addJoinStep(
+                        "join",
+                        List.of(left.ref("increment"), right.ref("increment")),
+                        ExecutionMode.DIRECT,
+                        results -> results.get(0) + results.get(1)
+                )
+                .build();
+
+        assertEquals(5, graph.execute(1).join());
+    }
+
     private AsyncStepFactory stepFactory() {
         return new AsyncStepFactory(new DefaultExecutionDispatcher(new ExecutorRegistry(Map.of(
                 ExecutionMode.IO, ioExecutor,
