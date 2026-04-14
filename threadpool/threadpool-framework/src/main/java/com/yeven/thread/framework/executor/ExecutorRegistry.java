@@ -4,7 +4,7 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 
 /**
- * Registry of executors keyed by execution mode.
+ * Read-only registry of executors keyed by {@link ExecutionMode}.
  */
 public class ExecutorRegistry {
 
@@ -14,6 +14,13 @@ public class ExecutorRegistry {
         this.executors = Map.copyOf(executors);
     }
 
+    /**
+     * Returns the executor for one mode.
+     *
+     * @param mode execution mode
+     * @return configured executor
+     * @throws IllegalArgumentException when mode has no bound executor
+     */
     public Executor getExecutor(ExecutionMode mode) {
         Executor executor = executors.get(mode);
         if (executor == null) {

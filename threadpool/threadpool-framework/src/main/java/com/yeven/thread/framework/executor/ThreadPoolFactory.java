@@ -9,7 +9,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Factory for building named thread pool executors.
+ * Factory for creating named {@link ThreadPoolExecutor} instances.
+ *
+ * <p>Use this factory to keep thread naming and queue policy consistent across services.</p>
  */
 public final class ThreadPoolFactory {
 
@@ -17,7 +19,7 @@ public final class ThreadPoolFactory {
     }
 
     /**
-     * Create a new executor backed by a {@link ThreadPoolExecutor}.
+     * Creates a new executor backed by {@link ThreadPoolExecutor}.
      *
      * @param prefix thread name prefix
      * @param coreSize minimum number of live threads
@@ -25,7 +27,7 @@ public final class ThreadPoolFactory {
      * @param queueCapacity task queue capacity
      * @param keepAliveSeconds idle keep alive time in seconds
      * @param rejectedExecutionHandler rejection policy
-     * @return configured executor
+     * @return configured executor instance
      */
     public static Executor create(
             String prefix,

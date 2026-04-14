@@ -11,7 +11,7 @@ Target:
 Command template:
 
 ```bash
-wrk -t8 -c200 -d30s --timeout 20s --latency -s /workspace/ThreadPool/scripts/wrk-login.lua http://127.0.0.1:8080/auth/login
+wrk -t8 -c200 -d30s --timeout 20s --latency -s /workspace/ThreadPool/scripts/wrk-login.lua http://threadpool-auth-demo:8080/auth/login
 wrk -t8 -c500 -d30s --timeout 20s --latency -s /workspace/ThreadPool/scripts/wrk-login.lua http://127.0.0.1:8080/auth/login
 ```
 

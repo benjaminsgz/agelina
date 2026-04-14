@@ -5,7 +5,10 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * Logging decorator for pipeline steps.
+ * Step decorator that logs per-step latency and failure.
+ *
+ * <p>This decorator is designed as a low-overhead default observability layer.
+ * For production tracing systems, implement a custom {@link StepDecorator} and register it as bean.</p>
  */
 public class LoggingStepDecorator implements StepDecorator {
 

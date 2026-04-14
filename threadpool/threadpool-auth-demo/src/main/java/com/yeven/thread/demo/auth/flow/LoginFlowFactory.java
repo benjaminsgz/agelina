@@ -14,6 +14,15 @@ import com.yeven.thread.framework.pipeline.StepDefinition;
 import org.springframework.security.crypto.bcrypt.BCrypt;
 import org.springframework.stereotype.Component;
 
+/**
+ * Factory that assembles the login pipeline.
+ *
+ * <p>Current chain:</p>
+ * <ol>
+ *     <li>load user from database on {@link ExecutionMode#IO}</li>
+ *     <li>verify bcrypt password on {@link ExecutionMode#CPU}</li>
+ * </ol>
+ */
 @Component
 public class LoginFlowFactory {
 
@@ -31,6 +40,11 @@ public class LoginFlowFactory {
         this.decorator = decorator;
     }
 
+    /**
+     * Creates one fresh login pipeline instance.
+     *
+     * @return login pipeline
+     */
     public AsyncPipeline<LoginContext> createLoginPipeline() {
         AsyncStep<LoginContext> loadUser = decorator.decorate(
                 "loadUser",

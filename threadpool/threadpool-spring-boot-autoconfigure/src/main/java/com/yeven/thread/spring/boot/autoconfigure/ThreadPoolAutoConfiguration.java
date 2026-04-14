@@ -21,12 +21,30 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 
 /**
- * Auto-configuration for framework execution and pipeline infrastructure.
+ * Spring Boot auto-configuration for thread-pool based async pipeline infrastructure.
+ *
+ * <p>This configuration publishes the following core beans:</p>
+ * <ul>
+ *     <li>{@code ioExecutor}/{@code cpuExecutor}</li>
+ *     <li>{@link ExecutorRegistry}</li>
+ *     <li>{@link ExecutionDispatcher}</li>
+ *     <li>{@link AsyncStepFactory}</li>
+ *     <li>{@link CompositeStepDecorator}</li>
+ * </ul>
+ *
+ * <p>After importing the starter, applications can inject {@link AsyncStepFactory} to build
+ * mode-aware async steps and compose them with {@link com.yeven.thread.framework.pipeline.AsyncPipelineBuilder}.</p>
  */
 @AutoConfiguration
 @EnableConfigurationProperties(ThreadPoolProperties.class)
 public class ThreadPoolAutoConfiguration {
 
+    /**
+     * IO executor bean.
+     *
+     * @param properties pool properties
+     * @return IO executor
+     */
     @Bean("ioExecutor")
     @ConditionalOnMissingBean(name = "ioExecutor")
     public Executor ioExecutor(ThreadPoolProperties properties) {
@@ -37,10 +55,16 @@ public class ThreadPoolAutoConfiguration {
                 io.getMaxSize(),
                 io.getQueueCapacity(),
                 io.getKeepAliveSeconds(),
-                new ThreadPoolExecutor.CallerRunsPolicy()
+                new ThreadPoolExecutor.AbortPolicy()
         );
     }
 
+    /**
+     * CPU executor bean.
+     *
+     * @param properties pool properties
+     * @return CPU executor
+     */
     @Bean("cpuExecutor")
     @ConditionalOnMissingBean(name = "cpuExecutor")
     public Executor cpuExecutor(ThreadPoolProperties properties) {
@@ -51,10 +75,17 @@ public class ThreadPoolAutoConfiguration {
                 cpu.getMaxSize(),
                 cpu.getQueueCapacity(),
                 cpu.getKeepAliveSeconds(),
-                new ThreadPoolExecutor.CallerRunsPolicy()
+                new ThreadPoolExecutor.AbortPolicy()
         );
     }
 
+    /**
+     * Builds the execution mode to executor mapping.
+     *
+     * @param ioExecutor IO executor
+     * @param cpuExecutor CPU executor
+     * @return registry bean
+     */
     @Bean
     @ConditionalOnMissingBean
     public ExecutorRegistry executorRegistry(
@@ -67,24 +98,47 @@ public class ThreadPoolAutoConfiguration {
         ));
     }
 
+    /**
+     * Default dispatcher bean.
+     *
+     * @param executorRegistry executor registry
+     * @return dispatcher
+     */
     @Bean
     @ConditionalOnMissingBean
     public ExecutionDispatcher executionDispatcher(ExecutorRegistry executorRegistry) {
         return new DefaultExecutionDispatcher(executorRegistry);
     }
 
+    /**
+     * Factory bean used by business code to convert {@code StepDefinition} into runnable steps.
+     *
+     * @param executionDispatcher dispatcher
+     * @return step factory
+     */
     @Bean
     @ConditionalOnMissingBean
     public AsyncStepFactory asyncStepFactory(ExecutionDispatcher executionDispatcher) {
         return new AsyncStepFactory(executionDispatcher);
     }
 
+    /**
+     * Default logging decorator bean.
+     *
+     * @return logging decorator
+     */
     @Bean
     @ConditionalOnMissingBean(LoggingStepDecorator.class)
     public LoggingStepDecorator loggingStepDecorator() {
         return new LoggingStepDecorator();
     }
 
+    /**
+     * Decorator chain bean.
+     *
+     * @param decoratorsProvider all available decorators from context
+     * @return composite decorator
+     */
     @Bean
     @ConditionalOnMissingBean(CompositeStepDecorator.class)
     public CompositeStepDecorator compositeStepDecorator(ObjectProvider<List<StepDecorator>> decoratorsProvider) {

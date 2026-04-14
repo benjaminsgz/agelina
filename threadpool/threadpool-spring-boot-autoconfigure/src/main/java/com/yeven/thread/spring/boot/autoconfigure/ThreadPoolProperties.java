@@ -3,7 +3,23 @@ package com.yeven.thread.spring.boot.autoconfigure;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * Configurable thread pool settings exposed by the starter.
+ * Thread pool properties bound from {@code threadpool.async.*}.
+ *
+ * <p>Example:</p>
+ * <pre>{@code
+ * threadpool:
+ *   async:
+ *     io:
+ *       core-size: 16
+ *       max-size: 32
+ *       queue-capacity: 2000
+ *       keep-alive-seconds: 60
+ *     cpu:
+ *       core-size: 8
+ *       max-size: 8
+ *       queue-capacity: 500
+ *       keep-alive-seconds: 60
+ * }</pre>
  */
 @ConfigurationProperties(prefix = "threadpool.async")
 public class ThreadPoolProperties {
@@ -27,6 +43,9 @@ public class ThreadPoolProperties {
         this.cpu = cpu;
     }
 
+    /**
+     * Configuration for one named pool.
+     */
     public static class Pool {
         private int coreSize = 8;
         private int maxSize = 16;

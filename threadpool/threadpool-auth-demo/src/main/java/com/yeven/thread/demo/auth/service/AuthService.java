@@ -9,6 +9,12 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import org.springframework.stereotype.Service;
 
+/**
+ * Application service that exposes login as a composable process.
+ *
+ * <p>Returning {@code Function<LoginRequest, CompletableFuture<LoginResponse>>} keeps control-flow
+ * composition explicit and avoids introducing extra stateful service objects.</p>
+ */
 @Service
 public class AuthService {
 
@@ -18,6 +24,11 @@ public class AuthService {
         this.loginFlowFactory = loginFlowFactory;
     }
 
+    /**
+     * Builds the login processing function.
+     *
+     * @return function that maps request to async response
+     */
     public Function<LoginRequest, CompletableFuture<LoginResponse>> login() {
         return request -> {
             LoginContext initContext = LoginContext.init(request.getUsername(), request.getPassword());

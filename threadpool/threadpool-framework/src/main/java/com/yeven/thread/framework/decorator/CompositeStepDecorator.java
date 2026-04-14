@@ -4,7 +4,10 @@ import com.yeven.thread.framework.pipeline.AsyncStep;
 import java.util.List;
 
 /**
- * Compose multiple step decorators into one chain.
+ * Composes multiple decorators into one decorator chain.
+ *
+ * <p>Decorators are applied in registration order, i.e. the first decorator in the list
+ * becomes the outermost wrapper.</p>
  */
 public class CompositeStepDecorator implements StepDecorator {
 

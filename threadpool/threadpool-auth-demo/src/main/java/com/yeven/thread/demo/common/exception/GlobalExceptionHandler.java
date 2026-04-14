@@ -4,17 +4,29 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.RejectedExecutionException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.bind.support.WebExchangeBindException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValid(MethodArgumentNotValidException e) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("code", 4000);
+        body.put("message", e.getBindingResult().getFieldError() != null
+                ? e.getBindingResult().getFieldError().getDefaultMessage()
+                : "参数校验失败");
+        return ResponseEntity.badRequest().body(body);
+    }
+
+    @ExceptionHandler(WebExchangeBindException.class)
+    public ResponseEntity<Map<String, Object>> handleValidWebFlux(WebExchangeBindException e) {
         Map<String, Object> body = new HashMap<>();
         body.put("code", 4000);
         body.put("message", e.getBindingResult().getFieldError() != null
@@ -37,11 +49,22 @@ public class GlobalExceptionHandler {
         if (cause instanceof BizException biz) {
             return handleBiz(biz);
         }
+        if (cause instanceof RejectedExecutionException) {
+            return handleRejected();
+        }
 
         Map<String, Object> body = new HashMap<>();
         body.put("code", 5000);
         body.put("message", cause != null ? cause.getMessage() : e.getMessage());
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
+    }
+
+    @ExceptionHandler(RejectedExecutionException.class)
+    public ResponseEntity<Map<String, Object>> handleRejected() {
+        Map<String, Object> body = new HashMap<>();
+        body.put("code", 4290);
+        body.put("message", "系统繁忙，请稍后重试");
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(body);
     }
 
     @ExceptionHandler(Exception.class)
