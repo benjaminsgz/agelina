@@ -49,9 +49,21 @@ public class ThreadPoolProperties {
      * Rejection policy enum mapping to ThreadPoolExecutor policies.
      */
     public enum RejectionPolicy {
+        /**
+         * Throws RejectedExecutionException.
+         */
         ABORT,
+        /**
+         * Executes the task in the caller's thread.
+         */
         CALLER_RUNS,
+        /**
+         * Silently discards the task.
+         */
         DISCARD,
+        /**
+         * Discards the oldest task in the queue.
+         */
         DISCARD_OLDEST
     }
 
@@ -59,10 +71,25 @@ public class ThreadPoolProperties {
      * Configuration for one named pool.
      */
     public static class Pool {
+        /**
+         * Minimum number of threads to keep alive.
+         */
         private int coreSize = 8;
+        /**
+         * Maximum allowed number of threads.
+         */
         private int maxSize = 16;
+        /**
+         * Capacity of the task queue.
+         */
         private int queueCapacity = 1000;
+        /**
+         * Time in seconds for idle threads to wait before terminating.
+         */
         private long keepAliveSeconds = 60;
+        /**
+         * Strategy used when the queue and max threads are exhausted.
+         */
         private RejectionPolicy rejectionPolicy = RejectionPolicy.ABORT;
 
         public int getCoreSize() {

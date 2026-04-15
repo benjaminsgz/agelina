@@ -9,6 +9,10 @@ import java.util.concurrent.CompletableFuture;
  * <p>Execution is strictly sequential by step order. Each step starts only after the previous step
  * future is completed successfully.</p>
  *
+ * <p><b>Warning:</b> The context object {@code C} is shared across all steps. If steps modify
+ * the context, ensure that the modifications are thread-safe or that visibility is guaranteed,
+ * especially if the pipeline is integrated into a larger concurrent graph.</p>
+ *
  * @param <C> pipeline context type
  */
 public class AsyncPipeline<C> {
@@ -30,7 +34,13 @@ public class AsyncPipeline<C> {
     public CompletableFuture<C> execute(C context) {
         CompletableFuture<C> future = CompletableFuture.completedFuture(context);
         for (AsyncStep<C> step : steps) {
-            future = future.thenCompose(step::apply);
+            future = future.thenCompose(c -> {
+                try {
+                    return step.apply(c);
+                } catch (Throwable t) {
+                    return CompletableFuture.failedFuture(t);
+                }
+            });
         }
         return future;
     }

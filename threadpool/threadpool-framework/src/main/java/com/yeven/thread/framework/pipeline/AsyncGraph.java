@@ -10,14 +10,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 /**
  * Immutable asynchronous DAG executor.
  *
- * <p>Each node is scheduled only after all declared dependencies complete successfully. Independent
- * branches can run in parallel because their futures are resolved recursively and memoized.</p>
+ * <p>Execution is driven by iterative topological sort. Each node is scheduled only after all
+ * declared dependencies complete successfully. Independent branches can run in parallel.</p>
+ *
+ * <p><b>Warning:</b> The context object {@code C} is shared across all nodes. Since independent
+ * branches can run in parallel, any state modification in the context object must be thread-safe
+ * (e.g., using concurrent collections, atomic variables, or synchronization) to avoid visibility
+ * issues or race conditions.</p>
  *
  * @param <C> graph context type
  */
@@ -25,8 +29,17 @@ public class AsyncGraph<C> {
 
     private final Map<String, GraphNode<C>> nodes;
     private final List<String> terminalNodes;
+    /**
+     * Order of execution that satisfies all dependency constraints.
+     */
     private final List<String> topologicalOrder;
 
+    /**
+     * Constructs a graph and validates its structure.
+     *
+     * @param nodes node name to definition mapping
+     * @throws IllegalArgumentException if cycle is detected or dependency is missing
+     */
     public AsyncGraph(Map<String, GraphNode<C>> nodes) {
         this.nodes = Collections.unmodifiableMap(new LinkedHashMap<>(nodes));
         validateDependencies();
