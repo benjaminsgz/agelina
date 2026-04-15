@@ -133,6 +133,19 @@ public class ThreadPoolAutoConfiguration {
     }
 
     /**
+     * Scans all initialized Spring beans and auto-registers methods annotated with
+     * {@link com.yeven.thread.framework.pipeline.AsyncStepBean}.
+     *
+     * @param asyncStepFactory step factory
+     * @return bean post processor
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public static AsyncStepBeanPostProcessor asyncStepBeanPostProcessor(AsyncStepFactory asyncStepFactory) {
+        return new AsyncStepBeanPostProcessor(asyncStepFactory);
+    }
+
+    /**
      * Default logging decorator bean.
      *
      * @return logging decorator

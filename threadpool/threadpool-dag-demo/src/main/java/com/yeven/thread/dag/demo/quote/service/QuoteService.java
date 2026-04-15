@@ -4,7 +4,7 @@ import com.yeven.thread.dag.demo.quote.context.QuoteContext;
 import com.yeven.thread.dag.demo.quote.dto.QuoteRequest;
 import com.yeven.thread.dag.demo.quote.dto.QuoteResponse;
 import com.yeven.thread.dag.demo.quote.flow.QuoteFlowFactory;
-import com.yeven.thread.framework.pipeline.AsyncGraph;
+import com.yeven.thread.framework.pipeline.SlotAsyncGraph;
 import java.math.BigDecimal;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
@@ -13,23 +13,23 @@ import org.springframework.stereotype.Service;
 @Service
 public class QuoteService {
 
-    private final QuoteFlowFactory quoteFlowFactory;
+    private final Function<QuoteRequest, CompletableFuture<QuoteResponse>> previewQuoteProcess;
 
     public QuoteService(QuoteFlowFactory quoteFlowFactory) {
-        this.quoteFlowFactory = quoteFlowFactory;
-    }
-
-    public Function<QuoteRequest, CompletableFuture<QuoteResponse>> previewQuote() {
-        return request -> {
+        SlotAsyncGraph<QuoteContext> graph = quoteFlowFactory.createQuoteGraph();
+        this.previewQuoteProcess = request -> {
             QuoteContext initContext = QuoteContext.init(
                     request.getUserId(),
                     request.getSku(),
                     request.getQuantity(),
                     request.getCouponCode()
             );
-            AsyncGraph<QuoteContext> graph = quoteFlowFactory.createQuoteGraph();
             return graph.execute(initContext).thenApply(this::toResponse);
         };
+    }
+
+    public Function<QuoteRequest, CompletableFuture<QuoteResponse>> previewQuote() {
+        return previewQuoteProcess;
     }
 
     private QuoteResponse toResponse(QuoteContext context) {

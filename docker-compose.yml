@@ -1,0 +1,29 @@
+services:
+  # 容器 1: Java DAG 应用
+  # 启动时会执行 mvn clean install && mvn spring-boot:run
+  dag-app:
+    build:
+      context: ./threadpool
+      dockerfile: Dockerfile
+    container_name: threadpool-dag-app
+    ports:
+      - "8081:8081"
+    networks:
+      - threadpool-net
+
+  # 容器 2: wrk 压测容器
+  # 运行后会等待应用启动并执行压测
+  wrk-tester:
+      image: williamyeh/wrk
+      container_name: wrk-tester
+      entrypoint: ["/bin/sh", "-c", "sleep 31536000"]
+      volumes:
+        - ./scripts:/scripts
+      networks:
+        - threadpool-net
+      depends_on:
+        - dag-app
+
+networks:
+  threadpool-net:
+    driver: bridge
