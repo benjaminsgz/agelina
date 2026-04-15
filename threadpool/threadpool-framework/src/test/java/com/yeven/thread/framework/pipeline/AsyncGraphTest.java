@@ -9,6 +9,9 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -27,6 +30,19 @@ class AsyncGraphTest {
     void tearDown() {
         ioExecutor.shutdownNow();
         cpuExecutor.shutdownNow();
+    }
+
+    @Test
+    void shouldHandleSynchronousExceptionInStep() {
+        AsyncGraph<Integer> graph = new AsyncGraphBuilder<Integer>(stepFactory())
+                .addRootStep("root", ExecutionMode.DIRECT, value -> {
+                    throw new RuntimeException("Sync error");
+                })
+                .build();
+
+        CompletableFuture<Integer> future = graph.execute(1);
+        CompletionException exception = assertThrows(CompletionException.class, future::join);
+        assertTrue(exception.getCause().getMessage().contains("Sync error"));
     }
 
     @Test

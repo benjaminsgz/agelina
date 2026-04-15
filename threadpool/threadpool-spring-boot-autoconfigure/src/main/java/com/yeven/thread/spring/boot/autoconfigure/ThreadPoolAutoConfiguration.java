@@ -12,6 +12,7 @@ import com.yeven.thread.framework.pipeline.AsyncStepFactory;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadPoolExecutor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -45,17 +46,17 @@ public class ThreadPoolAutoConfiguration {
      * @param properties pool properties
      * @return IO executor
      */
-    @Bean("ioExecutor")
+    @Bean(name = "ioExecutor", destroyMethod = "shutdown")
     @ConditionalOnMissingBean(name = "ioExecutor")
-    public Executor ioExecutor(ThreadPoolProperties properties) {
+    public ThreadPoolExecutor ioExecutor(ThreadPoolProperties properties) {
         ThreadPoolProperties.Pool io = properties.getIo();
-        return ThreadPoolFactory.create(
+        return (ThreadPoolExecutor) ThreadPoolFactory.create(
                 "io-pool",
                 io.getCoreSize(),
                 io.getMaxSize(),
                 io.getQueueCapacity(),
                 io.getKeepAliveSeconds(),
-                new ThreadPoolExecutor.AbortPolicy()
+                mapPolicy(io.getRejectionPolicy())
         );
     }
 
@@ -65,18 +66,27 @@ public class ThreadPoolAutoConfiguration {
      * @param properties pool properties
      * @return CPU executor
      */
-    @Bean("cpuExecutor")
+    @Bean(name = "cpuExecutor", destroyMethod = "shutdown")
     @ConditionalOnMissingBean(name = "cpuExecutor")
-    public Executor cpuExecutor(ThreadPoolProperties properties) {
+    public ThreadPoolExecutor cpuExecutor(ThreadPoolProperties properties) {
         ThreadPoolProperties.Pool cpu = properties.getCpu();
-        return ThreadPoolFactory.create(
+        return (ThreadPoolExecutor) ThreadPoolFactory.create(
                 "cpu-pool",
                 cpu.getCoreSize(),
                 cpu.getMaxSize(),
                 cpu.getQueueCapacity(),
                 cpu.getKeepAliveSeconds(),
-                new ThreadPoolExecutor.AbortPolicy()
+                mapPolicy(cpu.getRejectionPolicy())
         );
+    }
+
+    private RejectedExecutionHandler mapPolicy(ThreadPoolProperties.RejectionPolicy policy) {
+        return switch (policy) {
+            case ABORT -> new ThreadPoolExecutor.AbortPolicy();
+            case CALLER_RUNS -> new ThreadPoolExecutor.CallerRunsPolicy();
+            case DISCARD -> new ThreadPoolExecutor.DiscardPolicy();
+            case DISCARD_OLDEST -> new ThreadPoolExecutor.DiscardOldestPolicy();
+        };
     }
 
     /**

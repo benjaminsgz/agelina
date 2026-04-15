@@ -25,11 +25,14 @@ public class AsyncGraph<C> {
 
     private final Map<String, GraphNode<C>> nodes;
     private final List<String> terminalNodes;
+    private final List<String> topologicalOrder;
 
     public AsyncGraph(Map<String, GraphNode<C>> nodes) {
         this.nodes = Collections.unmodifiableMap(new LinkedHashMap<>(nodes));
         validateDependencies();
-        validateAcyclic();
+        List<String> order = new ArrayList<>();
+        validateAcyclicAndBuildOrder(order);
+        this.topologicalOrder = Collections.unmodifiableList(order);
         this.terminalNodes = List.copyOf(findTerminalNodes());
     }
 
@@ -50,8 +53,8 @@ public class AsyncGraph<C> {
                             + "Use executeAll(...) or add an explicit join node."
             );
         }
-        Map<String, CompletableFuture<C>> cache = new ConcurrentHashMap<>();
-        return executeNode(terminalNodes.get(0), initialContext, cache);
+        String terminalNode = terminalNodes.get(0);
+        return executeAll(initialContext).thenApply(results -> results.get(terminalNode));
     }
 
     /**
@@ -61,16 +64,38 @@ public class AsyncGraph<C> {
      * @return future containing all node outputs keyed by node name
      */
     public CompletableFuture<Map<String, C>> executeAll(C initialContext) {
-        Map<String, CompletableFuture<C>> cache = new ConcurrentHashMap<>();
         Map<String, CompletableFuture<C>> futures = new LinkedHashMap<>();
-        for (String nodeName : nodes.keySet()) {
-            futures.put(nodeName, executeNode(nodeName, initialContext, cache));
+
+        for (String nodeName : topologicalOrder) {
+            GraphNode<C> node = getNode(nodeName);
+            List<CompletableFuture<C>> dependencyFutures = new ArrayList<>();
+            for (String depName : node.dependencies()) {
+                dependencyFutures.add(futures.get(depName));
+            }
+
+            CompletableFuture<?>[] allDeps = dependencyFutures.toArray(CompletableFuture[]::new);
+            CompletableFuture<C> nodeFuture = CompletableFuture.allOf(allDeps)
+                    .thenCompose(unused -> {
+                        try {
+                            Map<String, C> dependencyResults = new LinkedHashMap<>();
+                            for (int i = 0; i < node.dependencies().size(); i++) {
+                                dependencyResults.put(node.dependencies().get(i), dependencyFutures.get(i).join());
+                            }
+                            GraphNodeInput<C> input = new GraphNodeInput<>(initialContext, dependencyResults);
+                            C resolvedInput = node.inputResolver().apply(input);
+                            return node.step().apply(resolvedInput);
+                        } catch (Throwable t) {
+                            return CompletableFuture.failedFuture(t);
+                        }
+                    });
+            futures.put(nodeName, nodeFuture);
         }
-        CompletableFuture<?>[] allFutures = futures.values().toArray(CompletableFuture[]::new);
-        return CompletableFuture.allOf(allFutures)
+
+        CompletableFuture<?>[] allNodes = futures.values().toArray(CompletableFuture[]::new);
+        return CompletableFuture.allOf(allNodes)
                 .thenApply(ignored -> {
                     Map<String, C> results = new LinkedHashMap<>();
-                    futures.forEach((nodeName, future) -> results.put(nodeName, future.join()));
+                    futures.forEach((name, f) -> results.put(name, f.join()));
                     return Collections.unmodifiableMap(results);
                 });
     }
@@ -80,51 +105,6 @@ public class AsyncGraph<C> {
      */
     public List<String> getTerminalNodes() {
         return terminalNodes;
-    }
-
-    private CompletableFuture<C> executeNode(
-            String nodeName,
-            C initialContext,
-            Map<String, CompletableFuture<C>> cache
-    ) {
-        CompletableFuture<C> cached = cache.get(nodeName);
-        if (cached != null) {
-            return cached;
-        }
-
-        CompletableFuture<C> placeholder = new CompletableFuture<>();
-        CompletableFuture<C> existing = cache.putIfAbsent(nodeName, placeholder);
-        if (existing != null) {
-            return existing;
-        }
-
-        GraphNode<C> node = getNode(nodeName);
-        List<CompletableFuture<C>> dependencyFutures = new ArrayList<>();
-        for (String dependency : node.dependencies()) {
-            dependencyFutures.add(executeNode(dependency, initialContext, cache));
-        }
-
-        CompletableFuture<?>[] allDependencies = dependencyFutures.toArray(CompletableFuture[]::new);
-        CompletableFuture<C> computed = CompletableFuture.allOf(allDependencies)
-                .thenCompose(unused -> {
-                    Map<String, C> dependencyResults = new LinkedHashMap<>();
-                    for (int i = 0; i < node.dependencies().size(); i++) {
-                        dependencyResults.put(node.dependencies().get(i), dependencyFutures.get(i).join());
-                    }
-                    GraphNodeInput<C> input = new GraphNodeInput<>(initialContext, dependencyResults);
-                    C resolvedInput = node.inputResolver().apply(input);
-                    return node.step().apply(resolvedInput);
-                });
-
-        computed.whenComplete((result, error) -> {
-            if (error != null) {
-                placeholder.completeExceptionally(error);
-            } else {
-                placeholder.complete(result);
-            }
-        });
-
-        return placeholder;
     }
 
     private GraphNode<C> getNode(String nodeName) {
@@ -147,17 +127,17 @@ public class AsyncGraph<C> {
         }
     }
 
-    private void validateAcyclic() {
+    private void validateAcyclicAndBuildOrder(List<String> order) {
         Map<String, VisitState> states = new LinkedHashMap<>();
         Deque<String> path = new ArrayDeque<>();
         for (String nodeName : nodes.keySet()) {
             if (states.get(nodeName) == null) {
-                dfs(nodeName, states, path);
+                dfs(nodeName, states, path, order);
             }
         }
     }
 
-    private void dfs(String nodeName, Map<String, VisitState> states, Deque<String> path) {
+    private void dfs(String nodeName, Map<String, VisitState> states, Deque<String> path, List<String> order) {
         states.put(nodeName, VisitState.VISITING);
         path.addLast(nodeName);
         for (String dependency : getNode(nodeName).dependencies()) {
@@ -180,11 +160,12 @@ public class AsyncGraph<C> {
                 throw new IllegalArgumentException("Cycle detected: " + cycle);
             }
             if (state == null) {
-                dfs(dependency, states, path);
+                dfs(dependency, states, path, order);
             }
         }
         path.removeLast();
         states.put(nodeName, VisitState.VISITED);
+        order.add(nodeName);
     }
 
     private List<String> findTerminalNodes() {

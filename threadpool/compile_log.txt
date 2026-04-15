@@ -1,0 +1,127 @@
+WARNING: A restricted method in java.lang.System has been called
+WARNING: java.lang.System::load has been called by org.fusesource.jansi.internal.JansiLoader in an unnamed module (file:/C:/Program%20Files/Apache-Maven/apache-maven-3.9.6/lib/jansi-2.4.0.jar)
+WARNING: Use --enable-native-access=ALL-UNNAMED to avoid a warning for callers in this module
+WARNING: Restricted methods will be blocked in a future release unless native access is enabled
+
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper (file:/C:/Program%20Files/Apache-Maven/apache-maven-3.9.6/lib/guava-32.0.1-jre.jar)
+WARNING: Please consider reporting this to the maintainers of class com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+[INFO] Scanning for projects...
+[INFO] ------------------------------------------------------------------------
+[INFO] Reactor Build Order:
+[INFO] 
+[INFO] threadpool                                                         [pom]
+[INFO] threadpool-framework                                               [jar]
+[INFO] threadpool-spring-boot-autoconfigure                               [jar]
+[INFO] threadpool-spring-boot-starter                                     [jar]
+[INFO] threadpool-auth-demo                                               [jar]
+[INFO] threadpool-dag-demo                                                [jar]
+[INFO] 
+[INFO] ------------------------< com.yeven:threadpool >------------------------
+[INFO] Building threadpool 1.0-SNAPSHOT                                   [1/6]
+[INFO]   from pom.xml
+[INFO] --------------------------------[ pom ]---------------------------------
+[INFO] 
+[INFO] --- clean:3.2.0:clean (default-clean) @ threadpool ---
+[INFO] 
+[INFO] --- enforcer:3.5.0:enforce (enforce-java-and-maven) @ threadpool ---
+[INFO] Rule 0: org.apache.maven.enforcer.rules.version.RequireJavaVersion passed
+[INFO] Rule 1: org.apache.maven.enforcer.rules.version.RequireMavenVersion passed
+[INFO] 
+[INFO] -------------------< com.yeven:threadpool-framework >-------------------
+[INFO] Building threadpool-framework 1.0-SNAPSHOT                         [2/6]
+[INFO]   from threadpool-framework\pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- clean:3.2.0:clean (default-clean) @ threadpool-framework ---
+[INFO] Deleting F:\source code\ss\ThreadPool\threadpool\threadpool-framework\target
+[INFO] 
+[INFO] --- enforcer:3.5.0:enforce (enforce-java-and-maven) @ threadpool-framework ---
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ threadpool-framework ---
+[INFO] skip non existing resourceDirectory F:\source code\ss\ThreadPool\threadpool\threadpool-framework\src\main\resources
+[INFO] 
+[INFO] --- compiler:3.13.0:compile (default-compile) @ threadpool-framework ---
+[INFO] Recompiling the module because of changed source code.
+[INFO] Compiling 21 source files with javac [debug release 17] to target\classes
+[INFO] 
+[INFO] -----------< com.yeven:threadpool-spring-boot-autoconfigure >-----------
+[INFO] Building threadpool-spring-boot-autoconfigure 1.0-SNAPSHOT         [3/6]
+[INFO]   from threadpool-spring-boot-autoconfigure\pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- clean:3.2.0:clean (default-clean) @ threadpool-spring-boot-autoconfigure ---
+[INFO] Deleting F:\source code\ss\ThreadPool\threadpool\threadpool-spring-boot-autoconfigure\target
+[INFO] 
+[INFO] --- enforcer:3.5.0:enforce (enforce-java-and-maven) @ threadpool-spring-boot-autoconfigure ---
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ threadpool-spring-boot-autoconfigure ---
+[INFO] Copying 1 resource from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.13.0:compile (default-compile) @ threadpool-spring-boot-autoconfigure ---
+[INFO] Recompiling the module because of changed dependency.
+[INFO] Compiling 2 source files with javac [debug release 17] to target\classes
+[INFO] 
+[INFO] --------------< com.yeven:threadpool-spring-boot-starter >--------------
+[INFO] Building threadpool-spring-boot-starter 1.0-SNAPSHOT               [4/6]
+[INFO]   from threadpool-spring-boot-starter\pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- clean:3.2.0:clean (default-clean) @ threadpool-spring-boot-starter ---
+[INFO] 
+[INFO] --- enforcer:3.5.0:enforce (enforce-java-and-maven) @ threadpool-spring-boot-starter ---
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ threadpool-spring-boot-starter ---
+[INFO] skip non existing resourceDirectory F:\source code\ss\ThreadPool\threadpool\threadpool-spring-boot-starter\src\main\resources
+[INFO] 
+[INFO] --- compiler:3.13.0:compile (default-compile) @ threadpool-spring-boot-starter ---
+[INFO] Recompiling the module because of changed dependency.
+[INFO] Compiling 1 source file with javac [debug release 17] to target\classes
+[INFO] 
+[INFO] -------------------< com.yeven:threadpool-auth-demo >-------------------
+[INFO] Building threadpool-auth-demo 1.0-SNAPSHOT                         [5/6]
+[INFO]   from threadpool-auth-demo\pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- clean:3.2.0:clean (default-clean) @ threadpool-auth-demo ---
+[INFO] 
+[INFO] --- enforcer:3.5.0:enforce (enforce-java-and-maven) @ threadpool-auth-demo ---
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ threadpool-auth-demo ---
+[INFO] Copying 1 resource from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.13.0:compile (default-compile) @ threadpool-auth-demo ---
+[INFO] Recompiling the module because of changed dependency.
+[INFO] Compiling 13 source files with javac [debug release 17] to target\classes
+[INFO] 
+[INFO] -------------------< com.yeven:threadpool-dag-demo >--------------------
+[INFO] Building threadpool-dag-demo 1.0-SNAPSHOT                          [6/6]
+[INFO]   from threadpool-dag-demo\pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- clean:3.2.0:clean (default-clean) @ threadpool-dag-demo ---
+[INFO] 
+[INFO] --- enforcer:3.5.0:enforce (enforce-java-and-maven) @ threadpool-dag-demo ---
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ threadpool-dag-demo ---
+[INFO] Copying 1 resource from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.13.0:compile (default-compile) @ threadpool-dag-demo ---
+[INFO] Recompiling the module because of changed dependency.
+[INFO] Compiling 16 source files with javac [debug release 17] to target\classes
+[INFO] ------------------------------------------------------------------------
+[INFO] Reactor Summary for threadpool 1.0-SNAPSHOT:
+[INFO] 
+[INFO] threadpool ......................................... SUCCESS [  0.315 s]
+[INFO] threadpool-framework ............................... SUCCESS [  1.086 s]
+[INFO] threadpool-spring-boot-autoconfigure ............... SUCCESS [  0.258 s]
+[INFO] threadpool-spring-boot-starter ..................... SUCCESS [  0.214 s]
+[INFO] threadpool-auth-demo ............................... SUCCESS [  0.947 s]
+[INFO] threadpool-dag-demo ................................ SUCCESS [  0.423 s]
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  3.502 s
+[INFO] Finished at: 2026-04-15T11:22:49+09:00
+[INFO] ------------------------------------------------------------------------

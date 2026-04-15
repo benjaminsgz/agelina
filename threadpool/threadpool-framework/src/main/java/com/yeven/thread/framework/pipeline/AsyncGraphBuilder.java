@@ -20,7 +20,7 @@ public class AsyncGraphBuilder<C> {
 
     private final AsyncStepFactory stepFactory;
     private final StepDecorator decorator;
-    private final Map<String, AsyncGraphNodeDefinition<C>> definitions = new LinkedHashMap<>();
+    private final Map<String, AsyncGraphNodeDefinition<C>> definitions = Collections.synchronizedMap(new LinkedHashMap<>());
 
     public AsyncGraphBuilder(AsyncStepFactory stepFactory) {
         this(stepFactory, new StepDecorator() {
@@ -44,7 +44,7 @@ public class AsyncGraphBuilder<C> {
      * @param handler business handler
      * @return same builder for chaining
      */
-    public AsyncGraphBuilder<C> addRootStep(String name, ExecutionMode mode, Function<C, C> handler) {
+    public synchronized AsyncGraphBuilder<C> addRootStep(String name, ExecutionMode mode, Function<C, C> handler) {
         return addNode(new AsyncGraphNodeDefinition<>(
                 name,
                 mode,
@@ -63,7 +63,7 @@ public class AsyncGraphBuilder<C> {
      * @param handler business handler
      * @return same builder for chaining
      */
-    public AsyncGraphBuilder<C> addStep(
+    public synchronized AsyncGraphBuilder<C> addStep(
             String name,
             String dependency,
             ExecutionMode mode,
@@ -89,7 +89,7 @@ public class AsyncGraphBuilder<C> {
      * @param handler business handler applied after merge
      * @return same builder for chaining
      */
-    public AsyncGraphBuilder<C> addJoinStep(
+    public synchronized AsyncGraphBuilder<C> addJoinStep(
             String name,
             List<String> dependencies,
             ExecutionMode mode,
@@ -114,7 +114,7 @@ public class AsyncGraphBuilder<C> {
      * @param merger merge function that combines dependency outputs
      * @return same builder for chaining
      */
-    public AsyncGraphBuilder<C> addJoinStep(
+    public synchronized AsyncGraphBuilder<C> addJoinStep(
             String name,
             List<String> dependencies,
             ExecutionMode mode,
@@ -129,7 +129,7 @@ public class AsyncGraphBuilder<C> {
      * @param definition node definition
      * @return same builder for chaining
      */
-    public AsyncGraphBuilder<C> addNode(AsyncGraphNodeDefinition<C> definition) {
+    public synchronized AsyncGraphBuilder<C> addNode(AsyncGraphNodeDefinition<C> definition) {
         Objects.requireNonNull(definition, "definition");
         AsyncGraphNodeDefinition<C> previous = definitions.putIfAbsent(definition.getName(), definition);
         if (previous != null) {
@@ -145,7 +145,7 @@ public class AsyncGraphBuilder<C> {
      * @param template subgraph template
      * @return instance handle for referencing namespaced nodes
      */
-    public AsyncGraphTemplateInstance<C> addTemplate(String namespace, AsyncGraphTemplate<C> template) {
+    public synchronized AsyncGraphTemplateInstance<C> addTemplate(String namespace, AsyncGraphTemplate<C> template) {
         return addTemplate(namespace, template, Collections.emptyMap());
     }
 
@@ -158,7 +158,7 @@ public class AsyncGraphBuilder<C> {
      * @param bindings alias to existing node name map
      * @return instance handle for referencing namespaced nodes
      */
-    public AsyncGraphTemplateInstance<C> addTemplate(
+    public synchronized AsyncGraphTemplateInstance<C> addTemplate(
             String namespace,
             AsyncGraphTemplate<C> template,
             Map<String, String> bindings
@@ -187,26 +187,28 @@ public class AsyncGraphBuilder<C> {
      *
      * @return async graph snapshot
      */
-    public AsyncGraph<C> build() {
+    public synchronized AsyncGraph<C> build() {
         Map<String, AsyncGraph.GraphNode<C>> nodes = new LinkedHashMap<>();
-        for (AsyncGraphNodeDefinition<C> definition : definitions.values()) {
-            AsyncStep<C> step = decorator.decorate(
-                    definition.getName(),
-                    stepFactory.create(new StepDefinition<>(
-                            definition.getName(),
-                            definition.getMode(),
-                            definition.getHandler()
-                    ))
-            );
-            nodes.put(
-                    definition.getName(),
-                    new AsyncGraph.GraphNode<>(
-                            definition.getName(),
-                            definition.getDependencies(),
-                            definition.getInputResolver(),
-                            step
-                    )
-            );
+        synchronized (definitions) {
+            for (AsyncGraphNodeDefinition<C> definition : definitions.values()) {
+                AsyncStep<C> step = decorator.decorate(
+                        definition.getName(),
+                        stepFactory.create(new StepDefinition<>(
+                                definition.getName(),
+                                definition.getMode(),
+                                definition.getHandler()
+                        ))
+                );
+                nodes.put(
+                        definition.getName(),
+                        new AsyncGraph.GraphNode<>(
+                                definition.getName(),
+                                definition.getDependencies(),
+                                definition.getInputResolver(),
+                                step
+                        )
+                );
+            }
         }
         return new AsyncGraph<>(nodes);
     }
