@@ -17,10 +17,14 @@ import java.util.concurrent.CompletableFuture;
  */
 public class AsyncPipeline<C> {
 
-    private final List<AsyncStep<C>> steps;
+    private final AsyncStep<C> composed;
 
     public AsyncPipeline(List<AsyncStep<C>> steps) {
-        this.steps = List.copyOf(steps);
+        AsyncStep<C> chain = AsyncStep.identity();
+        for (AsyncStep<C> step : steps) {
+            chain = chain.then(step);
+        }
+        this.composed = chain;
     }
 
     /**
@@ -32,16 +36,6 @@ public class AsyncPipeline<C> {
      * @return final context future
      */
     public CompletableFuture<C> execute(C context) {
-        CompletableFuture<C> future = CompletableFuture.completedFuture(context);
-        for (AsyncStep<C> step : steps) {
-            future = future.thenCompose(c -> {
-                try {
-                    return step.apply(c);
-                } catch (Throwable t) {
-                    return CompletableFuture.failedFuture(t);
-                }
-            });
-        }
-        return future;
+        return composed.apply(context);
     }
 }
