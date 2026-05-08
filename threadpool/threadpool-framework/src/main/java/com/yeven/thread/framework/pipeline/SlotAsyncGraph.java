@@ -59,17 +59,18 @@ public final class SlotAsyncGraph<C> {
 
         for (String nodeName : topologicalOrder) {
             RuntimeNode<C> node = nodes.get(nodeName);
-            CompletableFuture<?>[] dependencies = node.dependencies().stream()
-                    .map(dep -> {
-                        CompletableFuture<Void> dependencyFuture = futures.get(dep);
-                        if (dependencyFuture == null) {
-                            throw new IllegalStateException(
-                                    "Node '" + node.name() + "' references unknown dependency future '" + dep + "'"
-                            );
-                        }
-                        return dependencyFuture;
-                    })
-                    .toArray(CompletableFuture[]::new);
+            List<String> depNames = node.dependencies();
+            CompletableFuture<?>[] dependencies = new CompletableFuture[depNames.size()];
+            for (int i = 0; i < depNames.size(); i++) {
+                String dep = depNames.get(i);
+                CompletableFuture<Void> depFuture = futures.get(dep);
+                if (depFuture == null) {
+                    throw new IllegalStateException(
+                            "Node '" + node.name() + "' references unknown dependency future '" + dep + "'"
+                    );
+                }
+                dependencies[i] = depFuture;
+            }
 
             CompletableFuture<Void> nodeFuture = CompletableFuture.allOf(dependencies)
                     .thenCompose(unused -> stepFactory.dispatch(node.mode(), () -> {
