@@ -1,4 +1,4 @@
-# ThreadPool Async Orchestrator
+# Agelina Async Orchestrator
 
 ThreadPool is a lightweight async orchestration framework for Spring Boot applications. It is designed for business flows that need explicit execution routing, dependency-aware coordination, and low-overhead hot paths.
 
