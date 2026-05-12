@@ -1,31 +1,46 @@
 # ThreadPool Async Orchestrator
 
-一个面向 Spring Boot 的异步编排框架，当前只保留两套 API：
+ThreadPool is a lightweight async orchestration framework for Spring Boot applications. It is designed for business flows that need explicit execution routing, dependency-aware coordination, and low-overhead hot paths.
 
-1. `AsyncPipeline`：线性流程（顺序执行）
-2. `SlotAsyncGraph`：高性能 DAG（`int slot` + bitset + 启动期契约校验）
+The project currently exposes two main orchestration models:
 
-目标是让线程路由、依赖拓扑、过载行为可控，同时在 Hot Path 保持低开销。
+- `AsyncPipeline` for linear, step-by-step flows
+- `SlotAsyncGraph` for high-performance DAG execution with symbolic slots compiled to indexed access
 
-## 模块结构
+## Why This Project Exists
 
-- `threadpool-framework`：核心执行与编排模型
-- `threadpool-spring-boot-autoconfigure`：自动配置与 Bean 扩展点
-- `threadpool-spring-boot-starter`：starter 入口
-- `threadpool-auth-demo`：Pipeline 示例
-- `threadpool-dag-demo`：Slot DAG 示例
+In many backend services, business logic is no longer a single synchronous method call. A request may need to:
 
-## 核心概念
+- call databases, RPC services, or caches
+- mix I/O-heavy and CPU-heavy work
+- execute some branches in parallel
+- aggregate intermediate results safely
 
-### ExecutionMode
+This project provides a structured way to model those flows while keeping thread pool ownership and execution behavior explicit.
 
-- `IO`：阻塞 I/O（DB/RPC）
-- `CPU`：计算密集型步骤
-- `DIRECT`：调用线程直跑（无额外调度）
+## Modules
 
-### AsyncStepFactory
+- `threadpool-framework`: core execution and orchestration primitives
+- `threadpool-spring-boot-autoconfigure`: Spring Boot auto-configuration and bean registration support
+- `threadpool-spring-boot-starter`: starter dependency for application integration
+- `threadpool-auth-demo`: login flow demo built with `AsyncPipeline`
+- `threadpool-dag-demo`: quote preview demo built with `SlotAsyncGraph`
 
-`AsyncStepFactory` 把 `StepDefinition` 转换成可执行 `AsyncStep`，并按 `ExecutionMode` 路由到线程池。
+## Core Concepts
+
+### `ExecutionMode`
+
+Each step declares where it should run:
+
+- `IO`: blocking or latency-bound work such as DB, RPC, or remote calls
+- `CPU`: compute-heavy steps
+- `DIRECT`: run immediately on the current thread without extra dispatching
+
+This lets the framework route work to the appropriate executor instead of mixing everything into the same pool.
+
+### `AsyncStepFactory`
+
+`AsyncStepFactory` converts a `StepDefinition` into an executable `AsyncStep` and dispatches it based on its `ExecutionMode`.
 
 ```java
 AsyncStep<Ctx> step = stepFactory.create(new StepDefinition<>(
@@ -35,67 +50,74 @@ AsyncStep<Ctx> step = stepFactory.create(new StepDefinition<>(
 ));
 ```
 
-### AsyncPipeline
+### `AsyncPipeline`
 
-- 场景：纯顺序流程
-- 行为：前一步失败，后续跳过
+`AsyncPipeline` is intended for straightforward sequential flows.
 
-### SlotAsyncGraph (高性能 DAG)
+Characteristics:
 
-`SlotAsyncGraph` 是本框架的核心组件，专门为复杂的异步依赖拓扑设计。它通过“启动期编译/校验 + 运行时槽位访问”的模式，在提供符号化易用性的同时，消除了运行时对 Map 或 ConcurrentHashMap 的依赖。
+- easy to read and assemble
+- ideal for request processing with strict ordering
+- later steps are skipped if an earlier step fails
 
-#### 1) 核心原理
-- **槽位隔离 (Slotting)**：将整个执行链需要共享的中间结果抽象为 `slots` 数组。
-- **符号表 (SymbolTable)**：在 Builder 阶段，框架会自动将字符串名称（如 "userInfo"）映射为数组下标（如 `index 2`）。
-- **无锁可见性**：通过 `AtomicLongArray` 管理位图（ReadyBits）。当某个槽位被写入后，原子性更新位图，确保后续节点在不同线程也能看到最新的槽位值。
-- **拓扑校验**：在 `build()` 时进行深度优先搜索（DFS），检测循环依赖，并验证“数据消费路径”是否符合“逻辑依赖路径”。
+### `SlotAsyncGraph`
 
-#### 2) 核心 API 详解
+`SlotAsyncGraph` is the high-performance DAG engine in this repository. It is intended for dependency-heavy async workflows where multiple branches can run in parallel and later converge.
 
-| 方法 | 说明 | 适用场景 |
-| :--- | :--- | :--- |
-| `addSlotStep` | 定义一个产生单输出的节点 | 大多数业务步骤，如 `loadUser` -> `User` |
-| `addPatchStep` | 定义一个产生多输出（Patch）的节点 | 一个调用返回多个字段，如 `RPC` 返回 `ProductInfo` 包含名称、价格、库存 |
-| `addTerminalStep` | 定义图的终点，负责汇聚结果并返回 | 整个 DAG 的出口，将所有槽位值拼装回 Context |
-| `ExecutionMode` | 指定步骤运行的线程池 | `IO` (阻塞), `CPU` (计算), `DIRECT` (轻量) |
+Key ideas:
 
-#### 3) 启动期契约校验 (Fail-Fast)
-为了避免运行时出现隐晦的竞态或空指针，`build()` 阶段会强制执行以下校验：
-1. **单写者约束 (Single Writer)**：同一个 Slot（符号名）在图中只能有一个生产者。
-2. **依赖闭包约束 (Dependency Closure)**：如果节点 B 读取了 Slot `S`，而 `S` 是由节点 A 产生的，那么节点 B 必须在 `dependencies` 中直接或间接地包含节点 A。
-3. **循环依赖检测**：严禁出现 A -> B -> A 的死循环。
-4. **终点节点校验**：必须通过 `addTerminalStep` 指定唯一的出口，且该出口必须依赖所有必要的上游节点。
+- shared intermediate values are stored in `slots`
+- symbolic names such as `"memberLevel"` are resolved to slot indexes during build time
+- runtime access uses indexed slots instead of `Map` or `ConcurrentHashMap`
+- readiness is tracked with bitsets for cross-thread visibility
+- topology and dependency rules are validated during `build()`
 
-#### 4) 注意事项与最佳实践 (Precautions)
+This gives developers symbolic, readable APIs at authoring time and efficient indexed access at runtime.
 
-##### 🚀 性能建议
-- **优先使用符号名**：虽然支持 `int` 索引，但推荐在 Builder 阶段使用 `String` 符号名。框架在 `build()` 后会将其固化为 `int`，不会影响执行性能。
-- **控制 DIRECT 模式**：`ExecutionMode.DIRECT` 会在父节点执行完后的当前线程（通常是 IO/CPU 池线程）直接运行。仅适用于简单的字段提取、对象转换等极轻量操作（< 1ms）。
+## Fail-Fast Validation in `SlotAsyncGraph`
 
-##### 🛡️ 线程安全与可见性
-- **Context 的只读性**：在 `SlotAsyncGraph` 中，建议将初始 Context 视为**只读**的快照。所有节点间的中间产物应通过 **Slot** 传递，而不是通过修改 Context 属性。
-- **Slot 对象的安全性**：存入 Slot 的对象应尽量是不可变的（Immutable）。如果存入可变对象并被多个并行分支同时修改，框架无法保护其内部的线程安全。
+The graph builder validates the DAG before runtime to catch invalid flows early.
 
-##### 调试技巧
-- **符号表描述**：如果运行时抛出 `IllegalStateException: Slot not ready`，可以通过 `symbolTable.describe(slotId)` 获取可读的符号名。
-- **异常传播**：DAG 中任意节点抛出未捕获异常，都会导致整个图的 `CompletableFuture` 以失败告终。建议在关键节点内部进行适当的 `try-catch` 降级，返回默认值 Slot。
+Checks include:
 
-### @AsyncStepBean（Spring 自动注册）
+- single writer per slot
+- dependency closure for slot consumers
+- cycle detection
+- a valid terminal step as the graph exit
 
-标注方法会自动注册两类 Bean：
+This avoids a large class of runtime race conditions and incomplete dependency wiring.
+
+## Spring Integration
+
+You can register steps through code or via annotation-based auto-registration.
+
+Annotating a method with `@AsyncStepBean` automatically registers:
 
 - `stepDefinition.<stepName>`
 - `asyncStep.<stepName>`
 
-方法约束：
+Method constraints:
 
-- 仅 1 个参数（context）
-- 返回值不能是 `void`
-- 返回类型必须与参数类型兼容
+- exactly one parameter, usually the context object
+- return type must not be `void`
+- return type must be compatible with the context model being used
 
-## 快速开始
+Example:
 
-## 1) 引入 starter
+```java
+@Component
+public class UserSteps {
+
+    @AsyncStepBean(name = "loadUser", mode = ExecutionMode.IO)
+    public LoginContext loadUser(LoginContext ctx) {
+        return ctx.withUser(repo.findByUsername(ctx.getUsername()));
+    }
+}
+```
+
+## Quick Start
+
+### 1. Add the starter
 
 ```xml
 <dependency>
@@ -105,9 +127,7 @@ AsyncStep<Ctx> step = stepFactory.create(new StepDefinition<>(
 </dependency>
 ```
 
-## 2) 配置线程池
-
-`application.yml`
+### 2. Configure thread pools
 
 ```yaml
 threadpool:
@@ -126,7 +146,7 @@ threadpool:
       rejection-policy: ABORT
 ```
 
-## 3) Pipeline 示例
+### 3. Build a linear pipeline
 
 ```java
 @Service
@@ -155,7 +175,7 @@ public class LoginFlow {
 }
 ```
 
-## 4) SlotAsyncGraph 示例（DAG）
+### 4. Build a DAG with slots
 
 ```java
 SlotAsyncGraph<QuoteContext> graph = new SlotAsyncGraphBuilder<QuoteContext>(stepFactory)
@@ -210,50 +230,103 @@ SlotAsyncGraph<QuoteContext> graph = new SlotAsyncGraphBuilder<QuoteContext>(ste
         .build();
 ```
 
-## 5) 注解式 Step 自动注册
+## Demo Applications
 
-```java
-@Component
-public class UserSteps {
+### `threadpool-auth-demo`
 
-    @AsyncStepBean(name = "loadUser", mode = ExecutionMode.IO)
-    public LoginContext loadUser(LoginContext ctx) {
-        return ctx.withUser(repo.findByUsername(ctx.getUsername()));
-    }
+This demo shows a sequential login flow built with `AsyncPipeline`.
+
+Default server:
+
+- `http://localhost:8080`
+
+Endpoint:
+
+```http
+POST /auth/login
+Content-Type: application/json
+
+{
+  "username": "demo",
+  "password": "123456"
 }
 ```
 
-可通过 Bean 名称引用：
+The application uses MySQL. The initialization script is located at `scripts/mysql-init.sql`.
 
-- `asyncStep.loadUser`
-- `stepDefinition.loadUser`
+Default database settings:
 
-## 性能边界与建议
+- host: `localhost`
+- port: `3306`
+- database: `threadpool_demo`
+- username: `threadpool`
+- password: `threadpool`
 
-- `IO` 与 `CPU` 线程池分离，避免互相污染。
-- `DIRECT` 仅用于极轻步骤。
-- Hot Path 优先 `SlotAsyncGraph`：
-  - 业务代码优先用符号名槽位 API（可读性更好）
-  - 运行时仍是 `int slot` 索引访问（性能路径不变）
-  - 尽量单槽输出，`SlotPatch` 只用于确实需要多槽写入的步骤
+### `threadpool-dag-demo`
 
-## 开发与验证
+This demo shows a quote preview workflow built with `SlotAsyncGraph`, where several upstream tasks run concurrently and the final response is assembled in a terminal step.
 
-在仓库 `ThreadPool/threadpool` 目录下：
+Default server:
+
+- `http://localhost:8081`
+
+Endpoint:
+
+```http
+POST /quotes/preview
+Content-Type: application/json
+
+{
+  "userId": "u-1001",
+  "sku": "sku-001",
+  "quantity": 2,
+  "couponCode": "SPRING"
+}
+```
+
+## Build And Run
+
+Run commands from `threadpool/`:
 
 ```bash
 mvn -q test
 mvn -q -DskipTests compile
 ```
 
-## Demo
+Run a demo application:
 
-- `threadpool-auth-demo`：Pipeline 登录流程
-- `threadpool-dag-demo`：Slot DAG 报价流程
+```bash
+mvn -pl threadpool-auth-demo spring-boot:run
+mvn -pl threadpool-dag-demo spring-boot:run
+```
 
-## 兼容性
+## Docker Compose
+
+The repository includes a `docker-compose.yml` that builds and starts the DAG demo and a `wrk` container for load testing.
+
+Typical use:
+
+```bash
+docker compose up --build
+```
+
+Related helper files:
+
+- `scripts/wrk-quote.lua`
+- `reports/`
+
+## Performance Notes
+
+- keep `IO` and `CPU` workloads in separate pools
+- use `DIRECT` only for very small operations
+- prefer `SlotAsyncGraph` for hot paths with parallel dependencies
+- prefer symbolic slot names while authoring; they are compiled to indexed access during build
+- use patch-style multi-slot writes only when a step truly needs to publish multiple outputs
+
+## Compatibility
 
 - JDK 17+
+- Maven 3.9+
 - Spring Boot 3.3.x
 
 ## License
