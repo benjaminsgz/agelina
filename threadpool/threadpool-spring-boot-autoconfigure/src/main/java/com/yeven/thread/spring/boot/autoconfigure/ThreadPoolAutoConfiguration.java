@@ -11,9 +11,11 @@ import com.yeven.thread.framework.executor.ThreadPoolFactory;
 import com.yeven.thread.framework.pipeline.AsyncStepFactory;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -46,18 +48,10 @@ public class ThreadPoolAutoConfiguration {
      * @param properties pool properties
      * @return IO executor
      */
-    @Bean(name = "ioExecutor", destroyMethod = "shutdown")
+    @Bean(name = "ioExecutor", destroyMethod = "")
     @ConditionalOnMissingBean(name = "ioExecutor")
     public ThreadPoolExecutor ioExecutor(ThreadPoolProperties properties) {
-        ThreadPoolProperties.Pool io = properties.getIo();
-        return (ThreadPoolExecutor) ThreadPoolFactory.create(
-                "io-pool",
-                io.getCoreSize(),
-                io.getMaxSize(),
-                io.getQueueCapacity(),
-                io.getKeepAliveSeconds(),
-                mapPolicy(io.getRejectionPolicy())
-        );
+        return createExecutor("io", "io-pool", properties.getIo());
     }
 
     /**
@@ -66,18 +60,10 @@ public class ThreadPoolAutoConfiguration {
      * @param properties pool properties
      * @return CPU executor
      */
-    @Bean(name = "cpuExecutor", destroyMethod = "shutdown")
+    @Bean(name = "cpuExecutor", destroyMethod = "")
     @ConditionalOnMissingBean(name = "cpuExecutor")
     public ThreadPoolExecutor cpuExecutor(ThreadPoolProperties properties) {
-        ThreadPoolProperties.Pool cpu = properties.getCpu();
-        return (ThreadPoolExecutor) ThreadPoolFactory.create(
-                "cpu-pool",
-                cpu.getCoreSize(),
-                cpu.getMaxSize(),
-                cpu.getQueueCapacity(),
-                cpu.getKeepAliveSeconds(),
-                mapPolicy(cpu.getRejectionPolicy())
-        );
+        return createExecutor("cpu", "cpu-pool", properties.getCpu());
     }
 
     private RejectedExecutionHandler mapPolicy(ThreadPoolProperties.RejectionPolicy policy) {
@@ -87,6 +73,28 @@ public class ThreadPoolAutoConfiguration {
             case DISCARD -> new ThreadPoolExecutor.DiscardPolicy();
             case DISCARD_OLDEST -> new ThreadPoolExecutor.DiscardOldestPolicy();
         };
+    }
+
+    private ThreadPoolExecutor createExecutor(String poolName, String threadPrefix, ThreadPoolProperties.Pool pool) {
+        pool.validate(poolName);
+        return ThreadPoolFactory.create(
+                threadPrefix,
+                pool.getCoreSize(),
+                pool.getMaxSize(),
+                pool.getQueueType(),
+                pool.getQueueCapacity(),
+                pool.getKeepAliveSeconds(),
+                mapPolicy(pool.getRejectionPolicy())
+        );
+    }
+
+    @Bean(name = "threadPoolLifecycle", destroyMethod = "shutdown")
+    @ConditionalOnMissingBean(name = "threadPoolLifecycle")
+    public GracefulShutdown threadPoolLifecycle(
+            @Qualifier("ioExecutor") ThreadPoolExecutor ioExecutor,
+            @Qualifier("cpuExecutor") ThreadPoolExecutor cpuExecutor
+    ) {
+        return new GracefulShutdown(ioExecutor, cpuExecutor);
     }
 
     /**
@@ -167,5 +175,33 @@ public class ThreadPoolAutoConfiguration {
     public CompositeStepDecorator compositeStepDecorator(ObjectProvider<List<StepDecorator>> decoratorsProvider) {
         List<StepDecorator> decorators = decoratorsProvider.getIfAvailable(List::of);
         return new CompositeStepDecorator(decorators);
+    }
+
+    static final class GracefulShutdown {
+        private final List<ExecutorService> executors;
+
+        private GracefulShutdown(ExecutorService... executors) {
+            this.executors = List.of(executors);
+        }
+
+        public void shutdown() {
+            for (ExecutorService executor : executors) {
+                executor.shutdown();
+            }
+            for (ExecutorService executor : executors) {
+                awaitTermination(executor);
+            }
+        }
+
+        private void awaitTermination(ExecutorService executor) {
+            try {
+                if (!executor.awaitTermination(30, TimeUnit.SECONDS)) {
+                    executor.shutdownNow();
+                }
+            } catch (InterruptedException ex) {
+                executor.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
+        }
     }
 }

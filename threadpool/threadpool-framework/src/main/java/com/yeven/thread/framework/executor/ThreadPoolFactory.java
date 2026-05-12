@@ -1,8 +1,9 @@
 package com.yeven.thread.framework.executor;
 
-import java.util.concurrent.Executor;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionHandler;
+import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -29,10 +30,11 @@ public final class ThreadPoolFactory {
      * @param rejectedExecutionHandler rejection policy
      * @return configured executor instance
      */
-    public static Executor create(
+    public static ThreadPoolExecutor create(
             String prefix,
             int coreSize,
             int maxSize,
+            QueueType queueType,
             int queueCapacity,
             long keepAliveSeconds,
             RejectedExecutionHandler rejectedExecutionHandler
@@ -42,10 +44,17 @@ public final class ThreadPoolFactory {
                 maxSize,
                 keepAliveSeconds,
                 TimeUnit.SECONDS,
-                new LinkedBlockingQueue<>(queueCapacity),
+                createQueue(queueType, queueCapacity),
                 namedThreadFactory(prefix),
                 rejectedExecutionHandler
         );
+    }
+
+    private static BlockingQueue<Runnable> createQueue(QueueType queueType, int queueCapacity) {
+        return switch (queueType) {
+            case LINKED_BLOCKING -> new LinkedBlockingQueue<>(queueCapacity);
+            case SYNCHRONOUS -> new SynchronousQueue<>();
+        };
     }
 
     private static ThreadFactory namedThreadFactory(String prefix) {
@@ -56,5 +65,10 @@ public final class ThreadPoolFactory {
             thread.setDaemon(false);
             return thread;
         };
+    }
+
+    public enum QueueType {
+        LINKED_BLOCKING,
+        SYNCHRONOUS
     }
 }

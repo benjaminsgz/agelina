@@ -1,5 +1,6 @@
 package com.yeven.thread.spring.boot.autoconfigure;
 
+import com.yeven.thread.framework.executor.ThreadPoolFactory;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
@@ -26,8 +27,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "threadpool.async")
 public class ThreadPoolProperties {
 
-    private Pool io = new Pool();
-    private Pool cpu = new Pool();
+    private Pool io = Pool.ioDefaults();
+    private Pool cpu = Pool.cpuDefaults();
 
     public Pool getIo() {
         return io;
@@ -71,26 +72,80 @@ public class ThreadPoolProperties {
      * Configuration for one named pool.
      */
     public static class Pool {
+        private static final int AVAILABLE_PROCESSORS = Runtime.getRuntime().availableProcessors();
+
         /**
          * Minimum number of threads to keep alive.
          */
-        private int coreSize = 8;
+        private int coreSize;
         /**
          * Maximum allowed number of threads.
          */
-        private int maxSize = 16;
+        private int maxSize;
+        /**
+         * Work queue implementation used by this pool.
+         */
+        private ThreadPoolFactory.QueueType queueType;
         /**
          * Capacity of the task queue.
          */
-        private int queueCapacity = 1000;
+        private int queueCapacity;
         /**
          * Time in seconds for idle threads to wait before terminating.
          */
-        private long keepAliveSeconds = 60;
+        private long keepAliveSeconds;
         /**
          * Strategy used when the queue and max threads are exhausted.
          */
-        private RejectionPolicy rejectionPolicy = RejectionPolicy.ABORT;
+        private RejectionPolicy rejectionPolicy;
+
+        public static Pool ioDefaults() {
+            Pool pool = new Pool();
+            int core = Math.max(AVAILABLE_PROCESSORS * 2, 4);
+            pool.coreSize = core;
+            pool.maxSize = Math.max(core * 4, core);
+            pool.queueType = ThreadPoolFactory.QueueType.LINKED_BLOCKING;
+            pool.queueCapacity = 32;
+            pool.keepAliveSeconds = 30;
+            pool.rejectionPolicy = RejectionPolicy.CALLER_RUNS;
+            return pool;
+        }
+
+        public static Pool cpuDefaults() {
+            Pool pool = new Pool();
+            int cpuThreads = Math.max(AVAILABLE_PROCESSORS, 1);
+            pool.coreSize = cpuThreads;
+            pool.maxSize = cpuThreads;
+            pool.queueType = ThreadPoolFactory.QueueType.LINKED_BLOCKING;
+            pool.queueCapacity = 64;
+            pool.keepAliveSeconds = 30;
+            pool.rejectionPolicy = RejectionPolicy.ABORT;
+            return pool;
+        }
+
+        public void validate(String poolName) {
+            if (coreSize <= 0) {
+                throw new IllegalStateException(poolName + " core-size must be greater than 0");
+            }
+            if (maxSize < coreSize) {
+                throw new IllegalStateException(poolName + " max-size must be greater than or equal to core-size");
+            }
+            if (keepAliveSeconds < 0) {
+                throw new IllegalStateException(poolName + " keep-alive-seconds must be greater than or equal to 0");
+            }
+            if (queueType == null) {
+                throw new IllegalStateException(poolName + " queue-type must not be null");
+            }
+            if (queueType == ThreadPoolFactory.QueueType.LINKED_BLOCKING && queueCapacity <= 0) {
+                throw new IllegalStateException(poolName + " queue-capacity must be greater than 0 when queue-type is LINKED_BLOCKING");
+            }
+            if (queueType == ThreadPoolFactory.QueueType.SYNCHRONOUS && queueCapacity != 0) {
+                throw new IllegalStateException(poolName + " queue-capacity must be 0 when queue-type is SYNCHRONOUS");
+            }
+            if (rejectionPolicy == null) {
+                throw new IllegalStateException(poolName + " rejection-policy must not be null");
+            }
+        }
 
         public int getCoreSize() {
             return coreSize;
@@ -106,6 +161,14 @@ public class ThreadPoolProperties {
 
         public void setMaxSize(int maxSize) {
             this.maxSize = maxSize;
+        }
+
+        public ThreadPoolFactory.QueueType getQueueType() {
+            return queueType;
+        }
+
+        public void setQueueType(ThreadPoolFactory.QueueType queueType) {
+            this.queueType = queueType;
         }
 
         public int getQueueCapacity() {

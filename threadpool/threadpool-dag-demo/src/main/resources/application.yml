@@ -4,12 +4,16 @@ server:
 threadpool:
   async:
     io:
-      core-size: 32
-      max-size: 64
-      queue-capacity: 128
-      keep-alive-seconds: 30
-    cpu:
       core-size: 8
-      max-size: 9
-      queue-capacity: 64
+      max-size: 32
+      queue-type: LINKED_BLOCKING
+      queue-capacity: 16
       keep-alive-seconds: 30
+      rejection-policy: CALLER_RUNS
+    cpu:
+      core-size: 4
+      max-size: 4
+      queue-type: LINKED_BLOCKING
+      queue-capacity: 32
+      keep-alive-seconds: 30
+      rejection-policy: ABORT
