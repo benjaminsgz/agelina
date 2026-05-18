@@ -15,9 +15,9 @@ public class QuoteService {
 
     private final Function<QuoteRequest, CompletableFuture<QuoteResponse>> previewQuoteProcess;
 
-    public QuoteService(QuoteFlowFactory quoteFlowFactory) {
+    public QuoteService(QuoteFlowFactory quoteFlowFactory, QuotePreviewLimiter previewLimiter) {
         SlotAsyncGraph<QuoteContext> graph = quoteFlowFactory.createQuoteGraph();
-        this.previewQuoteProcess = request -> {
+        Function<QuoteRequest, CompletableFuture<QuoteResponse>> graphProcess = request -> {
             QuoteContext initContext = QuoteContext.init(
                     request.getUserId(),
                     request.getSku(),
@@ -26,6 +26,7 @@ public class QuoteService {
             );
             return graph.execute(initContext).thenApply(this::toResponse);
         };
+        this.previewQuoteProcess = request -> previewLimiter.execute(() -> graphProcess.apply(request));
     }
 
     public Function<QuoteRequest, CompletableFuture<QuoteResponse>> previewQuote() {
