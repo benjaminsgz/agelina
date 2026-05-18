@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLongArray;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -26,18 +27,21 @@ public final class SlotAsyncGraph<C> {
     private final Map<String, RuntimeNode<C>> nodes;
     private final List<String> topologicalOrder;
     private final String terminalNodeName;
+    private final SlotGraphMetricsRecorder metricsRecorder;
 
     SlotAsyncGraph(
             AsyncStepFactory stepFactory,
             SlotSymbolTable symbolTable,
             Map<String, SlotAsyncGraphNodeDefinition<C>> definitions,
             List<String> topologicalOrder,
-            String terminalNodeName
+            String terminalNodeName,
+            SlotGraphMetricsRecorder metricsRecorder
     ) {
         this.stepFactory = Objects.requireNonNull(stepFactory, "stepFactory");
         this.symbolTable = Objects.requireNonNull(symbolTable, "symbolTable");
         this.topologicalOrder = List.copyOf(topologicalOrder);
         this.terminalNodeName = Objects.requireNonNull(terminalNodeName, "terminalNodeName");
+        this.metricsRecorder = Objects.requireNonNull(metricsRecorder, "metricsRecorder");
 
         LinkedHashMap<String, RuntimeNode<C>> runtimeNodes = new LinkedHashMap<>(definitions.size());
         for (Map.Entry<String, SlotAsyncGraphNodeDefinition<C>> entry : definitions.entrySet()) {
@@ -73,10 +77,7 @@ public final class SlotAsyncGraph<C> {
             }
 
             CompletableFuture<Void> nodeFuture = CompletableFuture.allOf(dependencies)
-                    .thenCompose(unused -> stepFactory.dispatch(node.mode(), () -> {
-                        executeNode(node, initialContext, slotState, terminalResult);
-                        return null;
-                    }));
+                    .thenCompose(unused -> dispatchNode(node, initialContext, slotState, terminalResult));
             futures.put(nodeName, nodeFuture);
         }
 
@@ -92,6 +93,66 @@ public final class SlotAsyncGraph<C> {
                 throw new IllegalStateException("Terminal node '" + terminalNodeName + "' did not produce result");
             }
             return result;
+        });
+    }
+
+    private CompletableFuture<Void> dispatchNode(
+            RuntimeNode<C> node,
+            C initialContext,
+            SlotState slotState,
+            AtomicReference<C> terminalResult
+    ) {
+        if (metricsRecorder == NoopSlotGraphMetricsRecorder.INSTANCE) {
+            return stepFactory.dispatch(node.mode(), () -> {
+                executeNode(node, initialContext, slotState, terminalResult);
+                return null;
+            });
+        }
+
+        long readyNanos = System.nanoTime();
+        AtomicBoolean started = new AtomicBoolean(false);
+        CompletableFuture<Void> future = stepFactory.dispatch(node.mode(), () -> {
+            started.set(true);
+            long startNanos = System.nanoTime();
+            try {
+                executeNode(node, initialContext, slotState, terminalResult);
+                long endNanos = System.nanoTime();
+                metricsRecorder.recordNode(
+                        node.name(),
+                        node.mode(),
+                        node.role().name(),
+                        startNanos - readyNanos,
+                        endNanos - startNanos,
+                        true,
+                        null
+                );
+                return null;
+            } catch (Throwable error) {
+                long endNanos = System.nanoTime();
+                metricsRecorder.recordNode(
+                        node.name(),
+                        node.mode(),
+                        node.role().name(),
+                        startNanos - readyNanos,
+                        endNanos - startNanos,
+                        false,
+                        error
+                );
+                throw error;
+            }
+        });
+        return future.whenComplete((unused, error) -> {
+            if (error != null && !started.get()) {
+                metricsRecorder.recordNode(
+                        node.name(),
+                        node.mode(),
+                        node.role().name(),
+                        0L,
+                        0L,
+                        false,
+                        error
+                );
+            }
         });
     }
 

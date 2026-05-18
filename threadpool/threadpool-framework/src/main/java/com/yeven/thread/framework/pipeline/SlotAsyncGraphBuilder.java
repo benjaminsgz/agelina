@@ -29,6 +29,7 @@ public final class SlotAsyncGraphBuilder<C> {
     private final SlotSymbolTable fixedSymbolTable;
     private final SlotSymbolTable.Builder dynamicSymbolBuilder;
     private final Map<String, SlotAsyncGraphNodeDefinition<C>> definitions = new LinkedHashMap<>();
+    private SlotGraphMetricsRecorder metricsRecorder = SlotGraphMetricsRecorder.noop();
     private String terminalNodeName;
 
     public SlotAsyncGraphBuilder(AsyncStepFactory stepFactory, int slotCount) {
@@ -241,6 +242,19 @@ public final class SlotAsyncGraphBuilder<C> {
     }
 
     /**
+     * Installs a metrics recorder for runtime node execution.
+     *
+     * <p>The default recorder is no-op, so applications that do not need metrics pay no timestamp cost.</p>
+     *
+     * @param metricsRecorder metrics sink
+     * @return same builder
+     */
+    public synchronized SlotAsyncGraphBuilder<C> withMetricsRecorder(SlotGraphMetricsRecorder metricsRecorder) {
+        this.metricsRecorder = Objects.requireNonNull(metricsRecorder, "metricsRecorder");
+        return this;
+    }
+
+    /**
      * Builds immutable slot graph after full contract validation.
      */
     public synchronized SlotAsyncGraph<C> build() {
@@ -260,7 +274,8 @@ public final class SlotAsyncGraphBuilder<C> {
                 symbolTable,
                 nodes,
                 topologicalOrder,
-                terminalNodeName
+                terminalNodeName,
+                metricsRecorder
         );
     }
 

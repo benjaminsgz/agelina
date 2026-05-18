@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.yeven</groupId>
+  <artifactId>threadpool-framework</artifactId>
+  <version>1.0-SNAPSHOT</version>
+  <name>threadpool-framework</name>
+  <description>Core framework module for async execution and pipelines.</description>
+  <url>https://github.com/WSPlXA/ThreadPool/threadpool-framework</url>
+  <scm>
+    <connection>scm:git:https://github.com/WSPlXA/ThreadPool.git/threadpool-framework</connection>
+    <developerConnection>scm:git:ssh://git@github.com/WSPlXA/ThreadPool.git/threadpool-framework</developerConnection>
+    <url>https://github.com/WSPlXA/ThreadPool/threadpool-framework</url>
+  </scm>
+</project>

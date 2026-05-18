@@ -4,14 +4,17 @@ import com.yeven.thread.framework.executor.DefaultExecutionDispatcher;
 import com.yeven.thread.framework.executor.ExecutionMode;
 import com.yeven.thread.framework.executor.ExecutorRegistry;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -184,6 +187,56 @@ class SlotAsyncGraphTest {
         assertTrue(result.stockEnough());
     }
 
+    @Test
+    void shouldRecordNodeMetricsWhenRecorderIsConfigured() {
+        List<NodeMetric> metrics = new ArrayList<>();
+        SlotAsyncGraph<QuoteContext> graph = new SlotAsyncGraphBuilder<QuoteContext>(stepFactory(), 2)
+                .withMetricsRecorder((nodeName, mode, role, queueWaitNanos, runNanos, success, error) ->
+                        metrics.add(new NodeMetric(nodeName, role, queueWaitNanos, runNanos, success, error))
+                )
+                .addSlotStep("loadStock", List.of(), ExecutionMode.DIRECT, new int[0], 0, view -> 7)
+                .addTerminalStep("terminal", List.of("loadStock"), ExecutionMode.DIRECT, new int[]{0},
+                        ReadOnlySlotContextView::context)
+                .build();
+
+        graph.execute(new QuoteContext(1, null, BigDecimal.TEN, null, false)).join();
+
+        assertEquals(2, metrics.size());
+        assertEquals("loadStock", metrics.get(0).nodeName());
+        assertEquals("PATCH", metrics.get(0).role());
+        assertTrue(metrics.get(0).success());
+        assertTrue(metrics.get(0).queueWaitNanos() >= 0L);
+        assertTrue(metrics.get(0).runNanos() >= 0L);
+        assertEquals("terminal", metrics.get(1).nodeName());
+        assertEquals("TERMINAL", metrics.get(1).role());
+        assertTrue(metrics.get(1).success());
+    }
+
+    @Test
+    void shouldRecordFailedNodeMetrics() {
+        List<NodeMetric> metrics = new ArrayList<>();
+        SlotAsyncGraph<QuoteContext> graph = new SlotAsyncGraphBuilder<QuoteContext>(stepFactory(), 2)
+                .withMetricsRecorder((nodeName, mode, role, queueWaitNanos, runNanos, success, error) ->
+                        metrics.add(new NodeMetric(nodeName, role, queueWaitNanos, runNanos, success, error))
+                )
+                .addSlotStep("boom", List.of(), ExecutionMode.DIRECT, new int[0], 0, view -> {
+                    throw new IllegalStateException("boom");
+                })
+                .addTerminalStep("terminal", List.of("boom"), ExecutionMode.DIRECT, new int[]{0},
+                        ReadOnlySlotContextView::context)
+                .build();
+
+        assertThrows(CompletionException.class,
+                () -> graph.execute(new QuoteContext(1, null, BigDecimal.TEN, null, false)).join());
+
+        assertEquals(1, metrics.size());
+        assertEquals("boom", metrics.get(0).nodeName());
+        assertEquals("PATCH", metrics.get(0).role());
+        assertTrue(!metrics.get(0).success());
+        assertNotNull(metrics.get(0).error());
+        assertTrue(metrics.get(0).error() instanceof IllegalStateException);
+    }
+
     private AsyncStepFactory stepFactory() {
         return new AsyncStepFactory(new DefaultExecutionDispatcher(new ExecutorRegistry(Map.of(
                 ExecutionMode.IO, ioExecutor,
@@ -201,5 +254,15 @@ class SlotAsyncGraphTest {
         private QuoteContext withFinal(BigDecimal newPayableAmount, boolean newStockEnough) {
             return new QuoteContext(quantity, couponCode, baseAmount, newPayableAmount, newStockEnough);
         }
+    }
+
+    private record NodeMetric(
+            String nodeName,
+            String role,
+            long queueWaitNanos,
+            long runNanos,
+            boolean success,
+            Throwable error
+    ) {
     }
 }
