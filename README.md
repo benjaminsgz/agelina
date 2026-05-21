@@ -26,6 +26,22 @@ This project provides a structured way to model those flows while keeping thread
 - `threadpool-auth-demo`: login flow demo built with `AsyncPipeline`
 - `threadpool-dag-demo`: quote preview demo built with `SlotAsyncGraph`
 
+## Documentation Portals
+
+Agelina provides a highly detailed, bilingual (English and Chinese) documentation suite to help developers build applications and architects understand the system internals.
+
+### Developer Guides (/docs)
+* [English Portal Index](file:///f:/agelina/docs/README.md)
+* [Chinese Portal Index (中文开发者门户)](file:///f:/agelina/docs/README_zh.md)
+
+Developer guides cover step-by-step setup, linear sequential pipeline orchestration, parallel slot DAG development, Spring Boot auto-configuration post-processing, and telemetry metrics monitoring integration.
+
+### High-Level Architecture & Design Deep-dives (/docs-architect)
+* [English Architecture Index](file:///f:/agelina/docs-architect/README.md)
+* [Chinese Architecture Index (中文系统架构门户)](file:///f:/agelina/docs-architect/README_zh.md)
+
+Architecture guides cover physical thread pool isolation models, mathematical sizing calculations based on Little's Law, the internal SlotAsyncGraph compiler (symbolic table translating and CAS-based readyBits AtomicLongArray bitset dispatcher), queue sizes and backpressure overload protection (CallerRunsPolicy rationale), and C4 sequence/context diagrams using Mermaid.
+
 ## Core Concepts
 
 ### `ExecutionMode`
