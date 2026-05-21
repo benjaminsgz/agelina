@@ -1,5 +1,10 @@
 # Agelina Async Orchestrator
 
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![JDK](https://img.shields.io/badge/JDK-17%2B-orange.svg)](#)
+[![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.3.x-brightgreen.svg)](#)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/benjaminsgz/agelina/pulls)
+
 ThreadPool is a lightweight async orchestration framework for Spring Boot applications. It is designed for business flows that need explicit execution routing, dependency-aware coordination, and low-overhead hot paths.
 
 The project currently exposes two main orchestration models:
