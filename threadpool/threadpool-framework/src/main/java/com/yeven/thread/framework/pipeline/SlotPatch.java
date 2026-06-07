@@ -11,10 +11,28 @@ import java.util.Objects;
  */
 public final class SlotPatch {
 
+    private final int size;
+    private final int firstSlot;
+    private final int secondSlot;
+    private final Object firstValue;
+    private final Object secondValue;
     private final int[] slotIds;
     private final Object[] values;
 
-    private SlotPatch(int[] slotIds, Object[] values) {
+    private SlotPatch(
+            int size,
+            int firstSlot,
+            Object firstValue,
+            int secondSlot,
+            Object secondValue,
+            int[] slotIds,
+            Object[] values
+    ) {
+        this.size = size;
+        this.firstSlot = firstSlot;
+        this.firstValue = firstValue;
+        this.secondSlot = secondSlot;
+        this.secondValue = secondValue;
         this.slotIds = slotIds;
         this.values = values;
     }
@@ -27,7 +45,7 @@ public final class SlotPatch {
      * @return slot patch
      */
     public static SlotPatch of(int slotId, Object value) {
-        return new SlotPatch(new int[]{slotId}, new Object[]{value});
+        return new SlotPatch(1, slotId, value, -1, null, null, null);
     }
 
     /**
@@ -45,10 +63,7 @@ public final class SlotPatch {
             int secondSlot,
             Object secondValue
     ) {
-        return new SlotPatch(
-                new int[]{firstSlot, secondSlot},
-                new Object[]{firstValue, secondValue}
-        );
+        return new SlotPatch(2, firstSlot, firstValue, secondSlot, secondValue, null, null);
     }
 
     /**
@@ -69,20 +84,46 @@ public final class SlotPatch {
                     "slotIds and values length mismatch: " + slotIds.length + " vs " + values.length
             );
         }
+        if (slotIds.length == 1) {
+            return of(slotIds[0], values[0]);
+        }
+        if (slotIds.length == 2) {
+            return of(slotIds[0], values[0], slotIds[1], values[1]);
+        }
         int[] slotCopy = Arrays.copyOf(slotIds, slotIds.length);
         Object[] valueCopy = Arrays.copyOf(values, values.length);
-        return new SlotPatch(slotCopy, valueCopy);
+        return new SlotPatch(slotCopy.length, -1, null, -1, null, slotCopy, valueCopy);
     }
 
     int size() {
-        return slotIds.length;
+        return size;
     }
 
     int slotIdAt(int index) {
+        validateIndex(index);
+        if (size == 1) {
+            return firstSlot;
+        }
+        if (size == 2) {
+            return index == 0 ? firstSlot : secondSlot;
+        }
         return slotIds[index];
     }
 
     Object valueAt(int index) {
+        validateIndex(index);
+        if (size == 1) {
+            return firstValue;
+        }
+        if (size == 2) {
+            return index == 0 ? firstValue : secondValue;
+        }
         return values[index];
+    }
+
+    private void validateIndex(int index) {
+        if (index < 0 || index >= size) {
+            throw new IndexOutOfBoundsException("index=" + index + ", size=" + size);
+        }
     }
 }

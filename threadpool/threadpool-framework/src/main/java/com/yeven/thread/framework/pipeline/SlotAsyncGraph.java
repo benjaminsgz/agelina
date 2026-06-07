@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.atomic.AtomicLongArray;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -24,9 +25,11 @@ public final class SlotAsyncGraph<C> {
 
     private final AsyncStepFactory stepFactory;
     private final SlotSymbolTable symbolTable;
-    private final Map<String, RuntimeNode<C>> nodes;
-    private final List<String> topologicalOrder;
-    private final String terminalNodeName;
+    private final RuntimeNode<C>[] nodes;
+    private final int[][] dependentsByNode;
+    private final int[] initialRemainingDependencies;
+    private final boolean[] terminalPath;
+    private final int terminalNodeIndex;
     private final SlotGraphMetricsRecorder metricsRecorder;
 
     SlotAsyncGraph(
@@ -39,15 +42,21 @@ public final class SlotAsyncGraph<C> {
     ) {
         this.stepFactory = Objects.requireNonNull(stepFactory, "stepFactory");
         this.symbolTable = Objects.requireNonNull(symbolTable, "symbolTable");
-        this.topologicalOrder = List.copyOf(topologicalOrder);
-        this.terminalNodeName = Objects.requireNonNull(terminalNodeName, "terminalNodeName");
+        Objects.requireNonNull(definitions, "definitions");
+        Objects.requireNonNull(topologicalOrder, "topologicalOrder");
+        Objects.requireNonNull(terminalNodeName, "terminalNodeName");
         this.metricsRecorder = Objects.requireNonNull(metricsRecorder, "metricsRecorder");
 
-        LinkedHashMap<String, RuntimeNode<C>> runtimeNodes = new LinkedHashMap<>(definitions.size());
-        for (Map.Entry<String, SlotAsyncGraphNodeDefinition<C>> entry : definitions.entrySet()) {
-            runtimeNodes.put(entry.getKey(), RuntimeNode.from(entry.getValue()));
+        Map<String, Integer> nodeIndexByName = buildNodeIndex(topologicalOrder);
+        Integer terminalIndex = nodeIndexByName.get(terminalNodeName);
+        if (terminalIndex == null) {
+            throw new IllegalStateException("Terminal node not found: " + terminalNodeName);
         }
-        this.nodes = Map.copyOf(runtimeNodes);
+        this.nodes = compileRuntimeNodes(definitions, topologicalOrder, nodeIndexByName);
+        this.terminalNodeIndex = terminalIndex;
+        this.dependentsByNode = compileDependentsByNode(nodes);
+        this.initialRemainingDependencies = compileRemainingDependencies(nodes);
+        this.terminalPath = compileTerminalPath(nodes, terminalIndex);
     }
 
     /**
@@ -57,56 +66,23 @@ public final class SlotAsyncGraph<C> {
      * @return final context resolved by terminal node
      */
     public CompletableFuture<C> execute(C initialContext) {
-        SlotState slotState = new SlotState(symbolTable.slotCount());
-        AtomicReference<C> terminalResult = new AtomicReference<>();
-        Map<String, CompletableFuture<Void>> futures = new LinkedHashMap<>(topologicalOrder.size());
-
-        for (String nodeName : topologicalOrder) {
-            RuntimeNode<C> node = nodes.get(nodeName);
-            List<String> depNames = node.dependencies();
-            CompletableFuture<?>[] dependencies = new CompletableFuture[depNames.size()];
-            for (int i = 0; i < depNames.size(); i++) {
-                String dep = depNames.get(i);
-                CompletableFuture<Void> depFuture = futures.get(dep);
-                if (depFuture == null) {
-                    throw new IllegalStateException(
-                            "Node '" + node.name() + "' references unknown dependency future '" + dep + "'"
-                    );
-                }
-                dependencies[i] = depFuture;
+        GraphFrame<C> frame = new GraphFrame<>(initialContext, symbolTable.slotCount(), initialRemainingDependencies);
+        for (int nodeIndex = 0; nodeIndex < nodes.length; nodeIndex++) {
+            if (initialRemainingDependencies[nodeIndex] == 0) {
+                dispatchNode(nodeIndex, frame);
             }
-
-            CompletableFuture<Void> nodeFuture = CompletableFuture.allOf(dependencies)
-                    .thenCompose(unused -> dispatchNode(node, initialContext, slotState, terminalResult));
-            futures.put(nodeName, nodeFuture);
         }
-
-        CompletableFuture<Void> terminalFuture = futures.get(terminalNodeName);
-        if (terminalFuture == null) {
-            return CompletableFuture.failedFuture(
-                    new IllegalStateException("Terminal node not found: " + terminalNodeName)
-            );
-        }
-        return terminalFuture.thenApply(unused -> {
-            C result = terminalResult.get();
-            if (result == null) {
-                throw new IllegalStateException("Terminal node '" + terminalNodeName + "' did not produce result");
-            }
-            return result;
-        });
+        return frame.result;
     }
 
-    private CompletableFuture<Void> dispatchNode(
-            RuntimeNode<C> node,
-            C initialContext,
-            SlotState slotState,
-            AtomicReference<C> terminalResult
-    ) {
+    private void dispatchNode(int nodeIndex, GraphFrame<C> frame) {
+        RuntimeNode<C> node = nodes[nodeIndex];
         if (metricsRecorder == NoopSlotGraphMetricsRecorder.INSTANCE) {
-            return stepFactory.dispatch(node.mode(), () -> {
-                executeNode(node, initialContext, slotState, terminalResult);
+            stepFactory.dispatch(node.mode(), () -> {
+                executeNode(node, frame.initialContext, frame.slotState, frame.terminalResult);
                 return null;
-            });
+            }).whenComplete((unused, error) -> completeNode(nodeIndex, frame, error));
+            return;
         }
 
         long readyNanos = System.nanoTime();
@@ -115,7 +91,7 @@ public final class SlotAsyncGraph<C> {
             started.set(true);
             long startNanos = System.nanoTime();
             try {
-                executeNode(node, initialContext, slotState, terminalResult);
+                executeNode(node, frame.initialContext, frame.slotState, frame.terminalResult);
                 long endNanos = System.nanoTime();
                 metricsRecorder.recordNode(
                         node.name(),
@@ -141,7 +117,7 @@ public final class SlotAsyncGraph<C> {
                 throw error;
             }
         });
-        return future.whenComplete((unused, error) -> {
+        future.whenComplete((unused, error) -> {
             if (error != null && !started.get()) {
                 metricsRecorder.recordNode(
                         node.name(),
@@ -153,7 +129,39 @@ public final class SlotAsyncGraph<C> {
                         error
                 );
             }
+            completeNode(nodeIndex, frame, error);
         });
+    }
+
+    private void completeNode(int nodeIndex, GraphFrame<C> frame, Throwable error) {
+        if (error != null) {
+            if (terminalPath[nodeIndex]) {
+                frame.result.completeExceptionally(error);
+            }
+            return;
+        }
+
+        if (nodeIndex == terminalNodeIndex) {
+            C result = frame.terminalResult.get();
+            if (result == null) {
+                frame.result.completeExceptionally(new IllegalStateException(
+                        "Terminal node '" + nodes[terminalNodeIndex].name() + "' did not produce result"
+                ));
+                return;
+            }
+            frame.result.complete(result);
+        }
+
+        for (int dependentIndex : dependentsByNode[nodeIndex]) {
+            int remaining = frame.remainingDependencies.decrementAndGet(dependentIndex);
+            if (remaining == 0) {
+                dispatchNode(dependentIndex, frame);
+            } else if (remaining < 0) {
+                frame.result.completeExceptionally(new IllegalStateException(
+                        "Node '" + nodes[dependentIndex].name() + "' dependency count underflow"
+                ));
+            }
+        }
     }
 
     private void executeNode(
@@ -244,7 +252,7 @@ public final class SlotAsyncGraph<C> {
 
     private record RuntimeNode<C>(
             String name,
-            List<String> dependencies,
+            int[] dependencyIndexes,
             com.yeven.thread.framework.executor.ExecutionMode mode,
             int[] readSlots,
             int[] declaredWriteSlotsSorted,
@@ -252,12 +260,26 @@ public final class SlotAsyncGraph<C> {
             java.util.function.Function<ReadOnlySlotContextView<C>, SlotPatch> patchEvaluator,
             java.util.function.Function<ReadOnlySlotContextView<C>, C> terminalEvaluator
     ) {
-        private static <C> RuntimeNode<C> from(SlotAsyncGraphNodeDefinition<C> definition) {
+        private static <C> RuntimeNode<C> from(
+                SlotAsyncGraphNodeDefinition<C> definition,
+                Map<String, Integer> nodeIndexByName
+        ) {
             int[] sortedWriteSlots = definition.getDeclaredWriteSlots();
             Arrays.sort(sortedWriteSlots);
+            int[] dependencyIndexes = new int[definition.getDependencies().size()];
+            for (int i = 0; i < dependencyIndexes.length; i++) {
+                String dependency = definition.getDependencies().get(i);
+                Integer dependencyIndex = nodeIndexByName.get(dependency);
+                if (dependencyIndex == null) {
+                    throw new IllegalStateException(
+                            "Node '" + definition.getName() + "' references unknown dependency '" + dependency + "'"
+                    );
+                }
+                dependencyIndexes[i] = dependencyIndex;
+            }
             return new RuntimeNode<>(
                     definition.getName(),
-                    definition.getDependencies(),
+                    dependencyIndexes,
                     definition.getMode(),
                     definition.getReadSlots(),
                     sortedWriteSlots,
@@ -265,6 +287,104 @@ public final class SlotAsyncGraph<C> {
                     definition.getPatchEvaluator(),
                     definition.getTerminalEvaluator()
             );
+        }
+    }
+
+    private static Map<String, Integer> buildNodeIndex(List<String> topologicalOrder) {
+        LinkedHashMap<String, Integer> nodeIndexByName = new LinkedHashMap<>(topologicalOrder.size());
+        for (int i = 0; i < topologicalOrder.size(); i++) {
+            String nodeName = topologicalOrder.get(i);
+            if (nodeName == null || nodeName.isBlank()) {
+                throw new IllegalArgumentException("topologicalOrder contains blank node name at index " + i);
+            }
+            Integer previous = nodeIndexByName.putIfAbsent(nodeName, i);
+            if (previous != null) {
+                throw new IllegalArgumentException("Duplicate node in topologicalOrder: " + nodeName);
+            }
+        }
+        return Map.copyOf(nodeIndexByName);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <C> RuntimeNode<C>[] compileRuntimeNodes(
+            Map<String, SlotAsyncGraphNodeDefinition<C>> definitions,
+            List<String> topologicalOrder,
+            Map<String, Integer> nodeIndexByName
+    ) {
+        if (definitions.size() != topologicalOrder.size()) {
+            throw new IllegalArgumentException(
+                    "definitions/topologicalOrder size mismatch: "
+                            + definitions.size() + " vs " + topologicalOrder.size()
+            );
+        }
+        RuntimeNode<C>[] runtimeNodes = (RuntimeNode<C>[]) new RuntimeNode<?>[topologicalOrder.size()];
+        for (int i = 0; i < topologicalOrder.size(); i++) {
+            String nodeName = topologicalOrder.get(i);
+            SlotAsyncGraphNodeDefinition<C> definition = definitions.get(nodeName);
+            if (definition == null) {
+                throw new IllegalStateException("Missing node definition for topological node: " + nodeName);
+            }
+            runtimeNodes[i] = RuntimeNode.from(definition, nodeIndexByName);
+        }
+        return runtimeNodes;
+    }
+
+    private static int[][] compileDependentsByNode(RuntimeNode<?>[] nodes) {
+        int[] dependentCounts = new int[nodes.length];
+        for (RuntimeNode<?> node : nodes) {
+            for (int dependencyIndex : node.dependencyIndexes()) {
+                dependentCounts[dependencyIndex]++;
+            }
+        }
+
+        int[][] dependentsByNode = new int[nodes.length][];
+        for (int i = 0; i < nodes.length; i++) {
+            dependentsByNode[i] = new int[dependentCounts[i]];
+        }
+
+        int[] offsets = new int[nodes.length];
+        for (int nodeIndex = 0; nodeIndex < nodes.length; nodeIndex++) {
+            for (int dependencyIndex : nodes[nodeIndex].dependencyIndexes()) {
+                dependentsByNode[dependencyIndex][offsets[dependencyIndex]++] = nodeIndex;
+            }
+        }
+        return dependentsByNode;
+    }
+
+    private static int[] compileRemainingDependencies(RuntimeNode<?>[] nodes) {
+        int[] remainingDependencies = new int[nodes.length];
+        for (int i = 0; i < nodes.length; i++) {
+            remainingDependencies[i] = nodes[i].dependencyIndexes().length;
+        }
+        return remainingDependencies;
+    }
+
+    private static boolean[] compileTerminalPath(RuntimeNode<?>[] nodes, int terminalNodeIndex) {
+        boolean[] terminalPath = new boolean[nodes.length];
+        terminalPath[terminalNodeIndex] = true;
+        for (int nodeIndex = terminalNodeIndex; nodeIndex >= 0; nodeIndex--) {
+            if (!terminalPath[nodeIndex]) {
+                continue;
+            }
+            for (int dependencyIndex : nodes[nodeIndex].dependencyIndexes()) {
+                terminalPath[dependencyIndex] = true;
+            }
+        }
+        return terminalPath;
+    }
+
+    private static final class GraphFrame<C> {
+
+        private final C initialContext;
+        private final SlotState slotState;
+        private final AtomicReference<C> terminalResult = new AtomicReference<>();
+        private final AtomicIntegerArray remainingDependencies;
+        private final CompletableFuture<C> result = new CompletableFuture<>();
+
+        private GraphFrame(C initialContext, int slotCount, int[] initialRemainingDependencies) {
+            this.initialContext = initialContext;
+            this.slotState = new SlotState(slotCount);
+            this.remainingDependencies = new AtomicIntegerArray(initialRemainingDependencies);
         }
     }
 

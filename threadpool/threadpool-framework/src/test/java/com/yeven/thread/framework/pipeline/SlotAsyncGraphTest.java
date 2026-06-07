@@ -237,6 +237,22 @@ class SlotAsyncGraphTest {
         assertTrue(metrics.get(0).error() instanceof IllegalStateException);
     }
 
+    @Test
+    void shouldIgnoreFailureOutsideTerminalDependencyPath() {
+        SlotAsyncGraph<QuoteContext> graph = new SlotAsyncGraphBuilder<QuoteContext>(stepFactory(), 2)
+                .addSlotStep("unrelatedBoom", List.of(), ExecutionMode.DIRECT, new int[0], 1, view -> {
+                    throw new IllegalStateException("unrelated");
+                })
+                .addSlotStep("loadStock", List.of(), ExecutionMode.DIRECT, new int[0], 0, view -> 5)
+                .addTerminalStep("terminal", List.of("loadStock"), ExecutionMode.DIRECT, new int[]{0},
+                        ReadOnlySlotContextView::context)
+                .build();
+
+        QuoteContext result = graph.execute(new QuoteContext(1, null, BigDecimal.TEN, null, false)).join();
+
+        assertEquals(BigDecimal.TEN, result.baseAmount());
+    }
+
     private AsyncStepFactory stepFactory() {
         return new AsyncStepFactory(new DefaultExecutionDispatcher(new ExecutorRegistry(Map.of(
                 ExecutionMode.IO, ioExecutor,
