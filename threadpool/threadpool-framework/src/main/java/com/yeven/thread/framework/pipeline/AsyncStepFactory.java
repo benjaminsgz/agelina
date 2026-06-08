@@ -2,7 +2,10 @@ package com.yeven.thread.framework.pipeline;
 
 import com.yeven.thread.framework.executor.ExecutionDispatcher;
 import com.yeven.thread.framework.executor.ExecutionMode;
+import com.yeven.thread.framework.executor.NodeCompletion;
+import com.yeven.thread.framework.executor.NodeDispatcher;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.function.Supplier;
 
 /**
@@ -14,9 +17,13 @@ import java.util.function.Supplier;
 public class AsyncStepFactory {
 
     private final ExecutionDispatcher dispatcher;
+    private final NodeDispatcher nodeDispatcher;
 
     public AsyncStepFactory(ExecutionDispatcher dispatcher) {
         this.dispatcher = dispatcher;
+        this.nodeDispatcher = dispatcher instanceof NodeDispatcher directNodeDispatcher
+                ? directNodeDispatcher
+                : new FutureBackedNodeDispatcher(dispatcher);
     }
 
     /**
@@ -46,5 +53,42 @@ public class AsyncStepFactory {
      */
     public <T> CompletableFuture<T> dispatch(ExecutionMode mode, Supplier<T> supplier) {
         return dispatcher.dispatch(mode, supplier);
+    }
+
+    /**
+     * Dispatches one graph node without allocating a node-level future when the
+     * underlying dispatcher supports {@link NodeDispatcher}.
+     *
+     * @param mode execution mode
+     * @param task node task
+     * @param completion completion callback
+     */
+    public void dispatchNode(ExecutionMode mode, Runnable task, NodeCompletion completion) {
+        nodeDispatcher.dispatchNode(mode, task, completion);
+    }
+
+    private static final class FutureBackedNodeDispatcher implements NodeDispatcher {
+
+        private final ExecutionDispatcher dispatcher;
+
+        private FutureBackedNodeDispatcher(ExecutionDispatcher dispatcher) {
+            this.dispatcher = dispatcher;
+        }
+
+        @Override
+        public void dispatchNode(ExecutionMode mode, Runnable task, NodeCompletion completion) {
+            dispatcher.dispatch(mode, () -> {
+                task.run();
+                return null;
+            }).whenComplete((unused, error) -> completion.complete(unwrapCompletion(error)));
+        }
+
+        private static Throwable unwrapCompletion(Throwable error) {
+            if (error instanceof CompletionException completionException
+                    && completionException.getCause() != null) {
+                return completionException.getCause();
+            }
+            return error;
+        }
     }
 }

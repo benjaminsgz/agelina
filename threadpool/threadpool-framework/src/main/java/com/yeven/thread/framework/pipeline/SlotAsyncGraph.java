@@ -1,5 +1,7 @@
 package com.yeven.thread.framework.pipeline;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -7,7 +9,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.atomic.AtomicLongArray;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -22,6 +23,8 @@ import java.util.concurrent.atomic.AtomicReference;
  * @param <C> base context type
  */
 public final class SlotAsyncGraph<C> {
+
+    private static final VarHandle INT_ARRAY_HANDLE = MethodHandles.arrayElementVarHandle(int[].class);
 
     private final AsyncStepFactory stepFactory;
     private final SlotSymbolTable symbolTable;
@@ -66,7 +69,12 @@ public final class SlotAsyncGraph<C> {
      * @return final context resolved by terminal node
      */
     public CompletableFuture<C> execute(C initialContext) {
-        GraphFrame<C> frame = new GraphFrame<>(initialContext, symbolTable.slotCount(), initialRemainingDependencies);
+        GraphFrame<C> frame = new GraphFrame<>(
+                initialContext,
+                symbolTable,
+                symbolTable.slotCount(),
+                initialRemainingDependencies
+        );
         for (int nodeIndex = 0; nodeIndex < nodes.length; nodeIndex++) {
             if (initialRemainingDependencies[nodeIndex] == 0) {
                 dispatchNode(nodeIndex, frame);
@@ -78,59 +86,69 @@ public final class SlotAsyncGraph<C> {
     private void dispatchNode(int nodeIndex, GraphFrame<C> frame) {
         RuntimeNode<C> node = nodes[nodeIndex];
         if (metricsRecorder == NoopSlotGraphMetricsRecorder.INSTANCE) {
-            stepFactory.dispatch(node.mode(), () -> {
-                executeNode(node, frame.initialContext, frame.slotState, frame.terminalResult);
-                return null;
-            }).whenComplete((unused, error) -> completeNode(nodeIndex, frame, error));
+            stepFactory.dispatchNode(
+                    node.mode(),
+                    () -> executeNode(node, frame),
+                    error -> completeNode(nodeIndex, frame, error)
+            );
             return;
         }
 
         long readyNanos = System.nanoTime();
         AtomicBoolean started = new AtomicBoolean(false);
-        CompletableFuture<Void> future = stepFactory.dispatch(node.mode(), () -> {
-            started.set(true);
-            long startNanos = System.nanoTime();
-            try {
-                executeNode(node, frame.initialContext, frame.slotState, frame.terminalResult);
-                long endNanos = System.nanoTime();
-                metricsRecorder.recordNode(
-                        node.name(),
-                        node.mode(),
-                        node.role().name(),
-                        startNanos - readyNanos,
-                        endNanos - startNanos,
-                        true,
-                        null
-                );
-                return null;
-            } catch (Throwable error) {
-                long endNanos = System.nanoTime();
-                metricsRecorder.recordNode(
-                        node.name(),
-                        node.mode(),
-                        node.role().name(),
-                        startNanos - readyNanos,
-                        endNanos - startNanos,
-                        false,
-                        error
-                );
-                throw error;
-            }
-        });
-        future.whenComplete((unused, error) -> {
-            if (error != null && !started.get()) {
-                metricsRecorder.recordNode(
-                        node.name(),
-                        node.mode(),
-                        node.role().name(),
-                        0L,
-                        0L,
-                        false,
-                        error
-                );
-            }
-            completeNode(nodeIndex, frame, error);
-        });
+        stepFactory.dispatchNode(
+                node.mode(),
+                () -> executeMeasuredNode(node, frame, readyNanos, started),
+                error -> {
+                    if (error != null && !started.get()) {
+                        metricsRecorder.recordNode(
+                                node.name(),
+                                node.mode(),
+                                node.role().name(),
+                                0L,
+                                0L,
+                                false,
+                                error
+                        );
+                    }
+                    completeNode(nodeIndex, frame, error);
+                }
+        );
+    }
+
+    private void executeMeasuredNode(
+            RuntimeNode<C> node,
+            GraphFrame<C> frame,
+            long readyNanos,
+            AtomicBoolean started
+    ) {
+        started.set(true);
+        long startNanos = System.nanoTime();
+        try {
+            executeNode(node, frame);
+            long endNanos = System.nanoTime();
+            metricsRecorder.recordNode(
+                    node.name(),
+                    node.mode(),
+                    node.role().name(),
+                    startNanos - readyNanos,
+                    endNanos - startNanos,
+                    true,
+                    null
+            );
+        } catch (Throwable error) {
+            long endNanos = System.nanoTime();
+            metricsRecorder.recordNode(
+                    node.name(),
+                    node.mode(),
+                    node.role().name(),
+                    startNanos - readyNanos,
+                    endNanos - startNanos,
+                    false,
+                    error
+            );
+            throw error;
+        }
     }
 
     private void completeNode(int nodeIndex, GraphFrame<C> frame, Throwable error) {
@@ -153,7 +171,8 @@ public final class SlotAsyncGraph<C> {
         }
 
         for (int dependentIndex : dependentsByNode[nodeIndex]) {
-            int remaining = frame.remainingDependencies.decrementAndGet(dependentIndex);
+            int previous = (int) INT_ARRAY_HANDLE.getAndAdd(frame.remainingDependencies, dependentIndex, -1);
+            int remaining = previous - 1;
             if (remaining == 0) {
                 dispatchNode(dependentIndex, frame);
             } else if (remaining < 0) {
@@ -166,25 +185,28 @@ public final class SlotAsyncGraph<C> {
 
     private void executeNode(
             RuntimeNode<C> node,
-            C initialContext,
-            SlotState slotState,
-            AtomicReference<C> terminalResult
+            GraphFrame<C> frame
     ) {
         for (int slotId : node.readSlots()) {
-            if (!slotState.hasSlot(slotId)) {
+            if (!frame.slotState.hasSlot(slotId)) {
                 throw new IllegalStateException(
                         "Node '" + node.name() + "' reads unavailable slot " + symbolTable.describe(slotId)
                 );
             }
         }
 
-        ReadOnlySlotContextView<C> view = new RuntimeSlotView<>(initialContext, slotState, symbolTable);
+        ReadOnlySlotContextView<C> view = frame.view;
         if (node.role() == SlotNodeRole.PATCH) {
+            if (node.slotEvaluator() != null) {
+                Object value = node.slotEvaluator().apply(view);
+                frame.slotState.writeSlot(node.singleWriteSlot(), value);
+                return;
+            }
             SlotPatch patch = Objects.requireNonNull(
                     node.patchEvaluator().apply(view),
                     "Patch evaluator returned null for node: " + node.name()
             );
-            applyPatch(node, patch, slotState);
+            applyPatch(node, patch, frame.slotState);
             return;
         }
 
@@ -192,7 +214,7 @@ public final class SlotAsyncGraph<C> {
                 node.terminalEvaluator().apply(view),
                 "Terminal evaluator returned null for node: " + node.name()
         );
-        terminalResult.set(resolvedContext);
+        frame.terminalResult.set(resolvedContext);
     }
 
     private void applyPatch(RuntimeNode<C> node, SlotPatch patch, SlotState slotState) {
@@ -256,7 +278,9 @@ public final class SlotAsyncGraph<C> {
             com.yeven.thread.framework.executor.ExecutionMode mode,
             int[] readSlots,
             int[] declaredWriteSlotsSorted,
+            int singleWriteSlot,
             SlotNodeRole role,
+            java.util.function.Function<ReadOnlySlotContextView<C>, Object> slotEvaluator,
             java.util.function.Function<ReadOnlySlotContextView<C>, SlotPatch> patchEvaluator,
             java.util.function.Function<ReadOnlySlotContextView<C>, C> terminalEvaluator
     ) {
@@ -277,13 +301,16 @@ public final class SlotAsyncGraph<C> {
                 }
                 dependencyIndexes[i] = dependencyIndex;
             }
+            int singleWriteSlot = definition.getSlotEvaluator() == null ? -1 : sortedWriteSlots[0];
             return new RuntimeNode<>(
                     definition.getName(),
                     dependencyIndexes,
                     definition.getMode(),
                     definition.getReadSlots(),
                     sortedWriteSlots,
+                    singleWriteSlot,
                     definition.getRole(),
+                    definition.getSlotEvaluator(),
                     definition.getPatchEvaluator(),
                     definition.getTerminalEvaluator()
             );
@@ -377,14 +404,24 @@ public final class SlotAsyncGraph<C> {
 
         private final C initialContext;
         private final SlotState slotState;
+        private final RuntimeSlotView<C> view;
         private final AtomicReference<C> terminalResult = new AtomicReference<>();
-        private final AtomicIntegerArray remainingDependencies;
+        private final int[] remainingDependencies;
         private final CompletableFuture<C> result = new CompletableFuture<>();
 
-        private GraphFrame(C initialContext, int slotCount, int[] initialRemainingDependencies) {
+        private GraphFrame(
+                C initialContext,
+                SlotSymbolTable symbolTable,
+                int slotCount,
+                int[] initialRemainingDependencies
+        ) {
             this.initialContext = initialContext;
             this.slotState = new SlotState(slotCount);
-            this.remainingDependencies = new AtomicIntegerArray(initialRemainingDependencies);
+            this.view = new RuntimeSlotView<>(initialContext, slotState, symbolTable);
+            this.remainingDependencies = Arrays.copyOf(
+                    initialRemainingDependencies,
+                    initialRemainingDependencies.length
+            );
         }
     }
 

@@ -73,14 +73,17 @@ public final class SlotAsyncGraphBuilder<C> {
             Function<ReadOnlySlotContextView<C>, Object> evaluator
     ) {
         Objects.requireNonNull(evaluator, "evaluator");
-        return addPatchStep(
+        validateSlotIndexes(readSlots, "readSlots", name);
+        validateSlotIndexes(new int[]{writeSlot}, "writeSlot", name);
+        addDefinition(SlotAsyncGraphNodeDefinition.slotNode(
                 name,
-                dependencies,
                 mode,
+                normalizeDependencies(dependencies),
                 readSlots,
-                new int[]{writeSlot},
-                view -> SlotPatch.of(writeSlot, evaluator.apply(view))
-        );
+                writeSlot,
+                evaluator
+        ));
+        return this;
     }
 
     /**

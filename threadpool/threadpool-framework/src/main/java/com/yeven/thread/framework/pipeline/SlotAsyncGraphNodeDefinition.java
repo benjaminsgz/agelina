@@ -19,6 +19,7 @@ final class SlotAsyncGraphNodeDefinition<C> {
     private final int[] readSlots;
     private final int[] declaredWriteSlots;
     private final SlotNodeRole role;
+    private final Function<ReadOnlySlotContextView<C>, Object> slotEvaluator;
     private final Function<ReadOnlySlotContextView<C>, SlotPatch> patchEvaluator;
     private final Function<ReadOnlySlotContextView<C>, C> terminalEvaluator;
 
@@ -29,6 +30,7 @@ final class SlotAsyncGraphNodeDefinition<C> {
             int[] readSlots,
             int[] declaredWriteSlots,
             SlotNodeRole role,
+            Function<ReadOnlySlotContextView<C>, Object> slotEvaluator,
             Function<ReadOnlySlotContextView<C>, SlotPatch> patchEvaluator,
             Function<ReadOnlySlotContextView<C>, C> terminalEvaluator
     ) {
@@ -41,8 +43,30 @@ final class SlotAsyncGraphNodeDefinition<C> {
                 declaredWriteSlots.length
         );
         this.role = Objects.requireNonNull(role, "role");
+        this.slotEvaluator = slotEvaluator;
         this.patchEvaluator = patchEvaluator;
         this.terminalEvaluator = terminalEvaluator;
+    }
+
+    static <C> SlotAsyncGraphNodeDefinition<C> slotNode(
+            String name,
+            ExecutionMode mode,
+            List<String> dependencies,
+            int[] readSlots,
+            int writeSlot,
+            Function<ReadOnlySlotContextView<C>, Object> evaluator
+    ) {
+        return new SlotAsyncGraphNodeDefinition<>(
+                name,
+                mode,
+                dependencies,
+                readSlots,
+                new int[]{writeSlot},
+                SlotNodeRole.PATCH,
+                Objects.requireNonNull(evaluator, "evaluator"),
+                null,
+                null
+        );
     }
 
     static <C> SlotAsyncGraphNodeDefinition<C> patchNode(
@@ -60,6 +84,7 @@ final class SlotAsyncGraphNodeDefinition<C> {
                 readSlots,
                 declaredWriteSlots,
                 SlotNodeRole.PATCH,
+                null,
                 Objects.requireNonNull(evaluator, "evaluator"),
                 null
         );
@@ -79,6 +104,7 @@ final class SlotAsyncGraphNodeDefinition<C> {
                 readSlots,
                 new int[0],
                 SlotNodeRole.TERMINAL,
+                null,
                 null,
                 Objects.requireNonNull(evaluator, "evaluator")
         );
@@ -106,6 +132,10 @@ final class SlotAsyncGraphNodeDefinition<C> {
 
     SlotNodeRole getRole() {
         return role;
+    }
+
+    Function<ReadOnlySlotContextView<C>, Object> getSlotEvaluator() {
+        return slotEvaluator;
     }
 
     Function<ReadOnlySlotContextView<C>, SlotPatch> getPatchEvaluator() {

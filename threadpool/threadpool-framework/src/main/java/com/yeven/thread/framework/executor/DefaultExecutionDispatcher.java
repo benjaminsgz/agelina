@@ -11,7 +11,7 @@ import java.util.function.Supplier;
  * <p>{@link ExecutionMode#DIRECT} is executed immediately in caller thread.
  * Other modes are dispatched to their corresponding executors.</p>
  */
-public class DefaultExecutionDispatcher implements ExecutionDispatcher {
+public class DefaultExecutionDispatcher implements ExecutionDispatcher, NodeDispatcher {
 
     private final ExecutorRegistry executorRegistry;
 
@@ -32,6 +32,32 @@ public class DefaultExecutionDispatcher implements ExecutionDispatcher {
             return CompletableFuture.failedFuture(e);
         } catch (Throwable t) {
             return CompletableFuture.failedFuture(t);
+        }
+    }
+
+    @Override
+    public void dispatchNode(ExecutionMode mode, Runnable task, NodeCompletion completion) {
+        try {
+            if (mode == ExecutionMode.DIRECT) {
+                runNode(task, completion);
+                return;
+            }
+
+            Executor executor = executorRegistry.getExecutor(mode);
+            executor.execute(() -> runNode(task, completion));
+        } catch (RejectedExecutionException e) {
+            completion.complete(e);
+        } catch (Throwable t) {
+            completion.complete(t);
+        }
+    }
+
+    private static void runNode(Runnable task, NodeCompletion completion) {
+        try {
+            task.run();
+            completion.complete(null);
+        } catch (Throwable error) {
+            completion.complete(error);
         }
     }
 }
