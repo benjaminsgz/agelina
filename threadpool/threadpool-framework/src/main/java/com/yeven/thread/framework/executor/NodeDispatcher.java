@@ -1,20 +1,19 @@
 package com.yeven.thread.framework.executor;
 
 /**
- * Low-allocation dispatcher for graph node execution.
+ * 低内存开销的拓扑图节点任务分发器。
  *
- * <p>Unlike {@link ExecutionDispatcher}, this interface does not allocate one
- * {@code CompletableFuture} per node. It is intended for compiled graph runtimes
- * that already own the final result future and dependency counters.</p>
+ * <p>与 {@link ExecutionDispatcher} 不同，该接口在分发节点任务时不会为每个节点创建新的
+ * {@code CompletableFuture} 对象。它适用于已经持有最终结果 Future 和依赖计数器的编译后有向无环图（DAG）运行期。</p>
  */
 public interface NodeDispatcher {
 
     /**
-     * Dispatches one runnable node.
+     * 分发并执行一个可运行的节点任务。
      *
-     * @param mode execution mode
-     * @param task node task
-     * @param completion completion callback
+     * @param mode 执行模式，决定任务路由到哪个线程池
+     * @param task 节点的具体任务逻辑
+     * @param completion 节点执行完成时的状态回调接口
      */
     void dispatchNode(ExecutionMode mode, Runnable task, NodeCompletion completion);
 }

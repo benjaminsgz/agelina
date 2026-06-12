@@ -4,9 +4,9 @@ import com.yeven.thread.framework.executor.ThreadPoolFactory;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * Thread pool properties bound from {@code threadpool.async.*}.
+ * 绑定自配置前缀 {@code threadpool.async.*} 的线程池配置属性类。
  *
- * <p>Example:</p>
+ * <p>配置示例：</p>
  * <pre>{@code
  * threadpool:
  *   async:
@@ -47,58 +47,68 @@ public class ThreadPoolProperties {
     }
 
     /**
-     * Rejection policy enum mapping to ThreadPoolExecutor policies.
+     * 线程池拒绝策略枚举。
+     *
+     * <p>异步编排必须让每个提交的任务最终成功或失败完成。静默丢弃任务会导致调用方拿到永远不完成的 Future，
+     * 因此只允许显式失败或调用方执行这两种可观测策略。</p>
      */
     public enum RejectionPolicy {
         /**
-         * Throws RejectedExecutionException.
+         * 抛出 RejectedExecutionException 异常（默认策略）。
          */
         ABORT,
         /**
-         * Executes the task in the caller's thread.
+         * 直接在调用者线程中同步执行该任务（常用于 I/O 阻塞型线程池以提供天然的背压限制）。
          */
         CALLER_RUNS,
         /**
-         * Silently discards the task.
+         * 已废弃：静默丢弃任务会破坏 Future 完成语义，配置该值会在启动校验时失败。
          */
+        @Deprecated
         DISCARD,
         /**
-         * Discards the oldest task in the queue.
+         * 已废弃：丢弃队列中旧任务无法通知原始 Future，配置该值会在启动校验时失败。
          */
+        @Deprecated
         DISCARD_OLDEST
     }
 
     /**
-     * Configuration for one named pool.
+     * 单个线程池实例的配置参数。
      */
     public static class Pool {
         private static final int AVAILABLE_PROCESSORS = Runtime.getRuntime().availableProcessors();
 
         /**
-         * Minimum number of threads to keep alive.
+         * 核心线程数，线程池中保留的最小存活线程数。
          */
         private int coreSize;
         /**
-         * Maximum allowed number of threads.
+         * 最大线程数，线程池允许的最大并发线程数。
          */
         private int maxSize;
         /**
-         * Work queue implementation used by this pool.
+         * 线程池使用的任务队列类型。
          */
         private ThreadPoolFactory.QueueType queueType;
         /**
-         * Capacity of the task queue.
+         * 任务阻塞队列的容量大小。
          */
         private int queueCapacity;
         /**
-         * Time in seconds for idle threads to wait before terminating.
+         * 空闲非核心线程在终止前等待新任务的最长时间（单位：秒）。
          */
         private long keepAliveSeconds;
         /**
-         * Strategy used when the queue and max threads are exhausted.
+         * 当队列满且线程数达到最大值时的拒绝处理策略。
          */
         private RejectionPolicy rejectionPolicy;
 
+        /**
+         * 构造默认的 IO 线程池配置（I/O 密集型）。
+         *
+         * @return 默认 IO 线程池配置实例
+         */
         public static Pool ioDefaults() {
             Pool pool = new Pool();
             int core = Math.max(AVAILABLE_PROCESSORS * 2, 4);
@@ -111,6 +121,11 @@ public class ThreadPoolProperties {
             return pool;
         }
 
+        /**
+         * 构造默认的 CPU 线程池配置（计算密集型）。
+         *
+         * @return 默认 CPU 线程池配置实例
+         */
         public static Pool cpuDefaults() {
             Pool pool = new Pool();
             int cpuThreads = Math.max(AVAILABLE_PROCESSORS, 1);
@@ -123,6 +138,11 @@ public class ThreadPoolProperties {
             return pool;
         }
 
+        /**
+         * 校验当前线程池配置参数的合法性。
+         *
+         * @param poolName 线程池名称，用于异常描述
+         */
         public void validate(String poolName) {
             if (coreSize <= 0) {
                 throw new IllegalStateException(poolName + " core-size must be greater than 0");
@@ -144,6 +164,10 @@ public class ThreadPoolProperties {
             }
             if (rejectionPolicy == null) {
                 throw new IllegalStateException(poolName + " rejection-policy must not be null");
+            }
+            if (rejectionPolicy == RejectionPolicy.DISCARD || rejectionPolicy == RejectionPolicy.DISCARD_OLDEST) {
+                throw new IllegalStateException(
+                        poolName + " rejection-policy must not silently discard async tasks");
             }
         }
 

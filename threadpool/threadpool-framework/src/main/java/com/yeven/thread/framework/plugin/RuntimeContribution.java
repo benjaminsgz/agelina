@@ -3,17 +3,16 @@ package com.yeven.thread.framework.plugin;
 import java.util.Objects;
 
 /**
- * Runtime provider descriptor registered during startup.
+ * 启动期间注册的运行期提供者贡献描述符。
  *
- * @param name unique contribution name
- * @param order startup application order
- * @param provider runtime provider
+ * @param name     唯一的贡献名称
+ * @param order    启动加载排序权重，数值越小应用越早
+ * @param provider 运行期提供者实例
  */
 public record RuntimeContribution(
         String name,
         int order,
-        RuntimeProvider provider
-) implements NamedContribution {
+        RuntimeProvider provider) implements NamedContribution {
 
     public RuntimeContribution {
         ContributionNames.validate(name, "name");

@@ -1,10 +1,13 @@
 package com.yeven.thread.spring.boot.autoconfigure;
 
+import com.yeven.thread.framework.decorator.CompositeStepDecorator;
+import com.yeven.thread.framework.decorator.StepDecorator;
 import com.yeven.thread.framework.executor.ExecutionDispatcher;
 import com.yeven.thread.framework.executor.ExecutionMode;
 import com.yeven.thread.framework.pipeline.AsyncStep;
 import com.yeven.thread.framework.pipeline.AsyncStepBean;
 import com.yeven.thread.framework.pipeline.AsyncStepFactory;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.Test;
@@ -30,7 +33,7 @@ class AsyncStepBeanPostProcessorTest {
 
             @SuppressWarnings("unchecked")
             AsyncStep<String> step = (AsyncStep<String>) context.getBean("asyncStep.uppercase");
-            assertEquals("ABC", step.apply("abc").join());
+            assertEquals("[ABC]", step.apply("abc").join());
         }
     }
 
@@ -47,6 +50,21 @@ class AsyncStepBeanPostProcessorTest {
         try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
             context.register(InvalidSignatureConfig.class);
             assertThrows(BeansException.class, context::refresh);
+        }
+    }
+
+    @Test
+    void shouldRegisterStepBeansFromProxiedBean() {
+        try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
+            context.register(ProxyStepConfig.class);
+            context.refresh();
+
+            assertTrue(context.containsBean("stepDefinition.proxyStep"));
+            assertTrue(context.containsBean("asyncStep.proxyStep"));
+
+            @SuppressWarnings("unchecked")
+            AsyncStep<String> step = (AsyncStep<String>) context.getBean("asyncStep.proxyStep");
+            assertEquals("PROXY-ABC", step.apply("abc").join());
         }
     }
 
@@ -73,8 +91,8 @@ class AsyncStepBeanPostProcessorTest {
         }
 
         @Bean
-        static AsyncStepBeanPostProcessor asyncStepBeanPostProcessor(AsyncStepFactory asyncStepFactory) {
-            return new AsyncStepBeanPostProcessor(asyncStepFactory);
+        static AsyncStepBeanPostProcessor asyncStepBeanPostProcessor() {
+            return new AsyncStepBeanPostProcessor();
         }
     }
 
@@ -84,6 +102,20 @@ class AsyncStepBeanPostProcessorTest {
         @Bean
         StepProvider stepProvider() {
             return new StepProvider();
+        }
+
+        @Bean
+        CompositeStepDecorator compositeStepDecorator() {
+            return new CompositeStepDecorator(List.of(new BracketStringDecorator()));
+        }
+    }
+
+    static class BracketStringDecorator implements StepDecorator {
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public <C> AsyncStep<C> decorate(String stepName, AsyncStep<C> step) {
+            return context -> step.apply(context).thenApply(result -> (C) ("[" + result + "]"));
         }
     }
 
@@ -131,6 +163,29 @@ class AsyncStepBeanPostProcessorTest {
         @AsyncStepBean(name = "invalid", mode = ExecutionMode.DIRECT)
         public String missingArgument() {
             return "x";
+        }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class ProxyStepConfig extends BaseConfig {
+
+        @Bean
+        IStepProvider stepProvider() {
+            org.springframework.aop.framework.ProxyFactory factory = new org.springframework.aop.framework.ProxyFactory(new StepProviderImpl());
+            factory.addInterface(IStepProvider.class);
+            return (IStepProvider) factory.getProxy();
+        }
+    }
+
+    interface IStepProvider {
+        String proxyStep(String input);
+    }
+
+    static class StepProviderImpl implements IStepProvider {
+        @Override
+        @AsyncStepBean(name = "proxyStep", mode = ExecutionMode.DIRECT)
+        public String proxyStep(String input) {
+            return "PROXY-" + input.toUpperCase(Locale.ROOT);
         }
     }
 }

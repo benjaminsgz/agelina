@@ -298,10 +298,10 @@ POST /quotes/preview
 Content-Type: application/json
 
 {
-  "userId": "u-1001",
-  "sku": "sku-001",
+  "userId": "u100",
+  "sku": "SKU-1001",
   "quantity": 2,
-  "couponCode": "SPRING"
+  "couponCode": "SAVE10"
 }
 ```
 

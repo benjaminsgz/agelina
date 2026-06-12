@@ -134,6 +134,21 @@ class SlotAsyncGraphTest {
     }
 
     @Test
+    void shouldRejectNodeAfterTerminalStep() {
+        IllegalStateException exception = assertThrows(IllegalStateException.class, () ->
+                new SlotAsyncGraphBuilder<QuoteContext>(stepFactory(), 4)
+                        .addSlotStep("producer", List.of(), ExecutionMode.DIRECT, new int[0], 0, view -> "x")
+                        .addTerminalStep("terminal", List.of("producer"), ExecutionMode.DIRECT, new int[]{0},
+                                ReadOnlySlotContextView::context)
+                        .addSlotStep("afterTerminal", List.of("terminal"), ExecutionMode.DIRECT, new int[0], 1,
+                                view -> "late")
+                        .build()
+        );
+
+        assertTrue(exception.getMessage().contains("must be graph exit"));
+    }
+
+    @Test
     void shouldSupportSymbolicSlotsWithoutManualIndex() {
         SlotAsyncGraph<QuoteContext> graph = new SlotAsyncGraphBuilder<QuoteContext>(stepFactory())
                 .addSlotStep(

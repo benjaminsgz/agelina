@@ -7,9 +7,13 @@ import java.util.Objects;
 import java.util.function.Function;
 
 /**
- * Declarative node definition for slot-based async graph execution.
+ * 基于插槽异步有向无环图（DAG）执行器的声明式节点定义类。
  *
- * @param <C> base context type
+ * <p>
+ * 该类封装了单个节点的名称、执行模式、前置节点依赖列表、需要读取和声明写入的插槽索引，以及对应的执行处理器。
+ * </p>
+ *
+ * @param <C> 基础上下文类型
  */
 final class SlotAsyncGraphNodeDefinition<C> {
 
@@ -32,51 +36,52 @@ final class SlotAsyncGraphNodeDefinition<C> {
             SlotNodeRole role,
             Function<ReadOnlySlotContextView<C>, Object> slotEvaluator,
             Function<ReadOnlySlotContextView<C>, SlotPatch> patchEvaluator,
-            Function<ReadOnlySlotContextView<C>, C> terminalEvaluator
-    ) {
+            Function<ReadOnlySlotContextView<C>, C> terminalEvaluator) {
         this.name = Objects.requireNonNull(name, "name");
         this.mode = Objects.requireNonNull(mode, "mode");
         this.dependencies = List.copyOf(Objects.requireNonNull(dependencies, "dependencies"));
         this.readSlots = Arrays.copyOf(Objects.requireNonNull(readSlots, "readSlots"), readSlots.length);
         this.declaredWriteSlots = Arrays.copyOf(
                 Objects.requireNonNull(declaredWriteSlots, "declaredWriteSlots"),
-                declaredWriteSlots.length
-        );
+                declaredWriteSlots.length);
         this.role = Objects.requireNonNull(role, "role");
         this.slotEvaluator = slotEvaluator;
         this.patchEvaluator = patchEvaluator;
         this.terminalEvaluator = terminalEvaluator;
     }
 
+    /**
+     * 静态工厂：创建一个只写入单个插槽的普通节点定义。
+     */
     static <C> SlotAsyncGraphNodeDefinition<C> slotNode(
             String name,
             ExecutionMode mode,
             List<String> dependencies,
             int[] readSlots,
             int writeSlot,
-            Function<ReadOnlySlotContextView<C>, Object> evaluator
-    ) {
+            Function<ReadOnlySlotContextView<C>, Object> evaluator) {
         return new SlotAsyncGraphNodeDefinition<>(
                 name,
                 mode,
                 dependencies,
                 readSlots,
-                new int[]{writeSlot},
+                new int[] { writeSlot },
                 SlotNodeRole.PATCH,
                 Objects.requireNonNull(evaluator, "evaluator"),
                 null,
-                null
-        );
+                null);
     }
 
+    /**
+     * 静态工厂：创建一个声明写入多个插槽（修补写入）的节点定义。
+     */
     static <C> SlotAsyncGraphNodeDefinition<C> patchNode(
             String name,
             ExecutionMode mode,
             List<String> dependencies,
             int[] readSlots,
             int[] declaredWriteSlots,
-            Function<ReadOnlySlotContextView<C>, SlotPatch> evaluator
-    ) {
+            Function<ReadOnlySlotContextView<C>, SlotPatch> evaluator) {
         return new SlotAsyncGraphNodeDefinition<>(
                 name,
                 mode,
@@ -86,17 +91,18 @@ final class SlotAsyncGraphNodeDefinition<C> {
                 SlotNodeRole.PATCH,
                 null,
                 Objects.requireNonNull(evaluator, "evaluator"),
-                null
-        );
+                null);
     }
 
+    /**
+     * 静态工厂：创建一个作为图终结点的终端节点定义，负责解析和输出最终上下文。
+     */
     static <C> SlotAsyncGraphNodeDefinition<C> terminalNode(
             String name,
             ExecutionMode mode,
             List<String> dependencies,
             int[] readSlots,
-            Function<ReadOnlySlotContextView<C>, C> evaluator
-    ) {
+            Function<ReadOnlySlotContextView<C>, C> evaluator) {
         return new SlotAsyncGraphNodeDefinition<>(
                 name,
                 mode,
@@ -106,8 +112,7 @@ final class SlotAsyncGraphNodeDefinition<C> {
                 SlotNodeRole.TERMINAL,
                 null,
                 null,
-                Objects.requireNonNull(evaluator, "evaluator")
-        );
+                Objects.requireNonNull(evaluator, "evaluator"));
     }
 
     String getName() {
@@ -147,7 +152,16 @@ final class SlotAsyncGraphNodeDefinition<C> {
     }
 }
 
+/**
+ * 插槽节点角色枚举。
+ */
 enum SlotNodeRole {
+    /**
+     * 写入一个或多个插槽的中间计算步骤节点。
+     */
     PATCH,
+    /**
+     * 标志图执行结束并负责构造最终结果的终结点。
+     */
     TERMINAL
 }

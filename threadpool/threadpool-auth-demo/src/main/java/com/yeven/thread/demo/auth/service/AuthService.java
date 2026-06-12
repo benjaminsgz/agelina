@@ -34,7 +34,7 @@ public class AuthService {
             LoginContext initContext = LoginContext.init(request.getUsername(), request.getPassword());
             AsyncPipeline<LoginContext> pipeline = loginFlowFactory.createLoginPipeline();
             return pipeline.execute(initContext)
-                    .thenApply(context -> new LoginResponse(context.getUsername(), "bcrypt-only"));
+                    .thenApply(context -> new LoginResponse(context.getUsername(), context.getToken()));
         };
     }
 }

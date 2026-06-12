@@ -4,19 +4,19 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Fluent builder for ordered asynchronous pipelines.
+ * 用于顺序异步管道的链式构建器。
  *
- * @param <C> pipeline context type
+ * @param <C> 管道上下文类型
  */
 public class AsyncPipelineBuilder<C> {
 
     private final List<AsyncStep<C>> steps = new ArrayList<>();
 
     /**
-     * Appends one step to the end of the pipeline.
+     * 将一个异步步骤追加到管道的末尾。
      *
-     * @param step async step
-     * @return same builder for chaining
+     * @param step 异步步骤
+     * @return 当前构建器实例，用于链式调用
      */
     public AsyncPipelineBuilder<C> addStep(AsyncStep<C> step) {
         this.steps.add(step);
@@ -24,9 +24,9 @@ public class AsyncPipelineBuilder<C> {
     }
 
     /**
-     * Builds an immutable pipeline snapshot.
+     * 根据当前添加的所有步骤构建一个不可变的异步管道。
      *
-     * @return pipeline containing all added steps in insertion order
+     * @return 包含所有已添加步骤且按插入顺序排列的异步管道 {@link AsyncPipeline}
      */
     public AsyncPipeline<C> build() {
         return new AsyncPipeline<>(steps);

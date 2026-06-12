@@ -4,18 +4,18 @@ import com.yeven.thread.framework.pipeline.AsyncPipelineBuilder;
 import com.yeven.thread.framework.pipeline.AsyncStepFactory;
 
 /**
- * Startup procedure that contributes stages to a pipeline builder.
+ * 启动期向异步管道（Pipeline）构建器贡献阶段步骤的扩展程序接口。
  *
- * @param <C> pipeline context type
+ * @param <C> 管道上下文类型
  */
 @FunctionalInterface
 public interface PipelineContributor<C> {
 
     /**
-     * Adds pipeline stages.
+     * 向构建器中添加异步管道步骤。
      *
-     * @param builder pipeline builder
-     * @param stepFactory async step factory
+     * @param builder     异步管道构建器
+     * @param stepFactory 异步步骤工厂
      */
     void contribute(AsyncPipelineBuilder<C> builder, AsyncStepFactory stepFactory);
 }

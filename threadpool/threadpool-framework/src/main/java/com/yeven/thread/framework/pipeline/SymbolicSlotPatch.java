@@ -4,10 +4,10 @@ import java.util.Arrays;
 import java.util.Objects;
 
 /**
- * Multi-slot write patch addressed by symbolic slot names.
+ * 通过符号名称（Symbolic Slot Name）定位的多插槽写入补丁。
  *
- * <p>This class is API-level sugar. It is converted to {@link SlotPatch}
- * before execution.</p>
+ * <p>此类提供了 API 层面的语法糖，方便开发人员使用可读的槽名称编写代码。
+ * 在 DAG 实际运行执行前，它会被自动转换并编译为基于整型索引定位的 {@link SlotPatch}。</p>
  */
 public final class SymbolicSlotPatch {
 
@@ -20,11 +20,11 @@ public final class SymbolicSlotPatch {
     }
 
     /**
-     * Creates one symbolic patch from arrays.
+     * 根据符号名称数组与值数组创建多插槽符号写入补丁。
      *
-     * @param slotSymbols slot symbols
-     * @param values slot values
-     * @return symbolic patch
+     * @param slotSymbols 插槽符号名称数组
+     * @param values 对应的写入值数组
+     * @return 符号写入补丁对象
      */
     public static SymbolicSlotPatch from(String[] slotSymbols, Object[] values) {
         Objects.requireNonNull(slotSymbols, "slotSymbols");
@@ -48,18 +48,24 @@ public final class SymbolicSlotPatch {
     }
 
     /**
-     * Creates patch for one symbolic slot.
+     * 为单个符号插槽创建写入补丁。
      *
-     * @param slotSymbol slot symbol
-     * @param value slot value
-     * @return symbolic patch
+     * @param slotSymbol 插槽符号名称
+     * @param value 写入值
+     * @return 符号写入补丁对象
      */
     public static SymbolicSlotPatch of(String slotSymbol, Object value) {
         return from(new String[]{slotSymbol}, new Object[]{value});
     }
 
     /**
-     * Creates patch for two symbolic slots.
+     * 为两个符号插槽创建写入补丁。
+     *
+     * @param firstSlotSymbol 第一个插槽的符号名称
+     * @param firstValue 第一个值
+     * @param secondSlotSymbol 第二个插槽的符号名称
+     * @param secondValue 第二个值
+     * @return 符号写入补丁对象
      */
     public static SymbolicSlotPatch of(
             String firstSlotSymbol,

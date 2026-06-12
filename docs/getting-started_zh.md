@@ -53,8 +53,8 @@ threadpool:
 * `rejection-policy`：当工作队列满且线程数达到最大值时的拒绝处理策略。支持以下枚举值：
   * `CALLER_RUNS`：直接在提交任务的调用者线程中执行该任务。这起到了天然的背压（Backpressure）限流作用，防止应用内存溢出。
   * `ABORT`：立即抛出 `RejectedExecutionException` 异常拒绝执行。
-  * `DISCARD`：静默丢弃当前被拒绝的任务，不抛出异常。
-  * `DISCARD_OLDEST`：丢弃工作队列中最旧的未处理任务，以便为新任务腾出空间。
+
+`DISCARD` 与 `DISCARD_OLDEST` 会在启动校验阶段被拒绝，因为静默丢弃异步任务会让调用方等待一个永远无法完成的 Future。
 
 ---
 

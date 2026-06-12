@@ -53,8 +53,8 @@ threadpool:
 * `rejection-policy`: The handler invoked when the queue is saturated. Supported values are:
   * `CALLER_RUNS`: Executes the task directly on the caller thread, acting as a natural backpressure mechanism.
   * `ABORT`: Rejects the task with a `RejectedExecutionException`.
-  * `DISCARD`: Quietly drops the rejected task.
-  * `DISCARD_OLDEST`: Drops the oldest unhandled task in the queue to write the new task.
+
+`DISCARD` and `DISCARD_OLDEST` are intentionally rejected at startup because silently dropped async tasks can leave callers waiting on Futures that never complete.
 
 ---
 

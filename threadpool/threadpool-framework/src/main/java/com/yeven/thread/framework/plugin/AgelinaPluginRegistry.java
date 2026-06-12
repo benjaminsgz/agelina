@@ -9,11 +9,10 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Immutable startup plugin registry.
+ * 不可变的启动期插件注册表。
  *
- * <p>Contributions are sorted once at build time. The arrays in this registry are
- * cold-path boot data; compiled pipelines and graphs should copy only the resulting
- * handlers, slot ids, and runtime dispatchers they need.</p>
+ * <p>扩展点贡献（Contributions）在系统构建期只进行一次排序。此注册表中的数组属于冷路径（Cold-Path）启动数据；
+ * 编译后的线性管道和有向无环图应该只复制和提取它们所需的处理器、插槽 ID 以及运行期分发器，以避免运行期对注册表的检索和开销。</p>
  */
 public final class AgelinaPluginRegistry {
 
@@ -47,19 +46,19 @@ public final class AgelinaPluginRegistry {
     }
 
     /**
-     * Creates one empty builder.
+     * 创建一个空注册表构建器。
      *
-     * @return registry builder
+     * @return 注册表构建器实例
      */
     public static Builder builder() {
         return new Builder();
     }
 
     /**
-     * Builds one registry from plugins.
+     * 根据指定的插件列表构建只读注册表。
      *
-     * @param plugins startup plugins
-     * @return immutable registry
+     * @param plugins 启动插件列表
+     * @return 不可变插件注册表实例
      */
     public static AgelinaPluginRegistry from(List<? extends AgelinaPlugin> plugins) {
         Objects.requireNonNull(plugins, "plugins");
@@ -71,68 +70,76 @@ public final class AgelinaPluginRegistry {
     }
 
     /**
-     * @return sorted runtime contributions
+     * 获取排序后的运行期环境贡献列表拷贝。
+     *
+     * @return 运行期环境贡献数组
      */
     public RuntimeContribution[] runtimes() {
         return Arrays.copyOf(runtimes, runtimes.length);
     }
 
     /**
-     * @return sorted graph contributions
+     * 获取排序后的有向图贡献列表拷贝。
+     *
+     * @return 有向图贡献数组
      */
     public GraphContribution<?>[] graphs() {
         return Arrays.copyOf(graphs, graphs.length);
     }
 
     /**
-     * @return sorted pipeline contributions
+     * 获取排序后的顺序管道贡献列表拷贝。
+     *
+     * @return 顺序管道贡献数组
      */
     public PipelineContribution<?>[] pipelines() {
         return Arrays.copyOf(pipelines, pipelines.length);
     }
 
     /**
-     * @return sorted slot schema contributions
+     * 获取排序后的插槽 Schema 贡献列表拷贝。
+     *
+     * @return 插槽 Schema 贡献数组
      */
     public SlotSchemaContribution[] slotSchemas() {
         return Arrays.copyOf(slotSchemas, slotSchemas.length);
     }
 
     /**
-     * Looks up one runtime contribution by name.
+     * 根据名称查询运行期环境贡献。
      *
-     * @param name runtime name
-     * @return contribution or null
+     * @param name 运行期名称
+     * @return 对应的贡献对象，未找到则返回 null
      */
     public RuntimeContribution runtime(String name) {
         return runtimeByName.get(name);
     }
 
     /**
-     * Looks up one graph contribution by name.
+     * 根据名称查询有向图贡献。
      *
-     * @param name graph contribution name
-     * @return contribution or null
+     * @param name 有向图贡献名称
+     * @return 对应的贡献对象，未找到则返回 null
      */
     public GraphContribution<?> graph(String name) {
         return graphByName.get(name);
     }
 
     /**
-     * Looks up one pipeline contribution by name.
+     * 根据名称查询顺序管道贡献。
      *
-     * @param name pipeline contribution name
-     * @return contribution or null
+     * @param name 管道贡献名称
+     * @return 对应的贡献对象，未找到则返回 null
      */
     public PipelineContribution<?> pipeline(String name) {
         return pipelineByName.get(name);
     }
 
     /**
-     * Looks up one slot schema contribution by name.
+     * 根据名称查询插槽 Schema 贡献。
      *
-     * @param name slot schema contribution name
-     * @return contribution or null
+     * @param name 插槽 Schema 贡献名称
+     * @return 对应的贡献对象，未找到则返回 null
      */
     public SlotSchemaContribution slotSchema(String name) {
         return slotSchemaByName.get(name);
@@ -171,7 +178,7 @@ public final class AgelinaPluginRegistry {
     }
 
     /**
-     * Mutable registry builder used only at startup.
+     * 仅在启动阶段使用的可变注册表构建器。
      */
     public static final class Builder implements AgelinaContributions {
 
@@ -217,9 +224,9 @@ public final class AgelinaPluginRegistry {
         }
 
         /**
-         * Builds an immutable sorted registry snapshot.
+         * 构建排序完成的不可变插件注册表实例。
          *
-         * @return plugin registry
+         * @return 插件注册表
          */
         public AgelinaPluginRegistry build() {
             return new AgelinaPluginRegistry(this);

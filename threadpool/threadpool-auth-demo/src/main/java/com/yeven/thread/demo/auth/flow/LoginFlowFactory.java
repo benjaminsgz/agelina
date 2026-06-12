@@ -4,6 +4,7 @@ import com.yeven.thread.demo.auth.context.LoginContext;
 import com.yeven.thread.demo.auth.repository.UserRepository;
 import com.yeven.thread.demo.common.exception.BizException;
 import com.yeven.thread.demo.common.model.User;
+import com.yeven.thread.demo.util.JwtUtils;
 import com.yeven.thread.framework.decorator.CompositeStepDecorator;
 import com.yeven.thread.framework.executor.ExecutionMode;
 import com.yeven.thread.framework.pipeline.AsyncPipeline;
@@ -21,6 +22,7 @@ import org.springframework.stereotype.Component;
  * <ol>
  *     <li>load user from database on {@link ExecutionMode#IO}</li>
  *     <li>verify bcrypt password on {@link ExecutionMode#CPU}</li>
+ *     <li>issue JWT token after authentication succeeds on {@link ExecutionMode#CPU}</li>
  * </ol>
  */
 @Component
@@ -29,15 +31,18 @@ public class LoginFlowFactory {
     private final AsyncStepFactory stepFactory;
     private final UserRepository userRepository;
     private final CompositeStepDecorator decorator;
+    private final JwtUtils jwtUtils;
 
     public LoginFlowFactory(
             AsyncStepFactory stepFactory,
             UserRepository userRepository,
-            CompositeStepDecorator decorator
+            CompositeStepDecorator decorator,
+            JwtUtils jwtUtils
     ) {
         this.stepFactory = stepFactory;
         this.userRepository = userRepository;
         this.decorator = decorator;
+        this.jwtUtils = jwtUtils;
     }
 
     /**
@@ -79,9 +84,19 @@ public class LoginFlowFactory {
                 ))
         );
 
+        AsyncStep<LoginContext> issueToken = decorator.decorate(
+                "issueToken",
+                stepFactory.create(new StepDefinition<>(
+                        "issueToken",
+                        ExecutionMode.CPU,
+                        context -> context.withToken(jwtUtils.createToken(context.getUser()))
+                ))
+        );
+
         return new AsyncPipelineBuilder<LoginContext>()
                 .addStep(loadUser)
                 .addStep(verifyPassword)
+                .addStep(issueToken)
                 .build();
     }
 }

@@ -24,29 +24,29 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 
 /**
- * Spring Boot auto-configuration for thread-pool based async pipeline infrastructure.
+ * 基于线程池隔离的异步管道和有向无环图（DAG）编排基础设施的 Spring Boot 自动配置类。
  *
- * <p>This configuration publishes the following core beans:</p>
+ * <p>本配置类负责发布以下核心 Bean：</p>
  * <ul>
- *     <li>{@code ioExecutor}/{@code cpuExecutor}</li>
- *     <li>{@link ExecutorRegistry}</li>
- *     <li>{@link ExecutionDispatcher}</li>
- *     <li>{@link AsyncStepFactory}</li>
- *     <li>{@link CompositeStepDecorator}</li>
+ *     <li>{@code ioExecutor} (用于阻塞型 I/O 任务的线程池) 与 {@code cpuExecutor} (用于计算密集型任务的线程池)</li>
+ *     <li>{@link ExecutorRegistry} (执行器注册表)</li>
+ *     <li>{@link ExecutionDispatcher} (异步任务分发器)</li>
+ *     <li>{@link AsyncStepFactory} (异步步骤工厂)</li>
+ *     <li>{@link CompositeStepDecorator} (装饰器组合链)</li>
  * </ul>
  *
- * <p>After importing the starter, applications can inject {@link AsyncStepFactory} to build
- * mode-aware async steps and compose them with {@link com.yeven.thread.framework.pipeline.AsyncPipelineBuilder}.</p>
+ * <p>引入对应的 starter 后，业务模块可以直接注入 {@link AsyncStepFactory} 来便捷地创建具备执行模式路由特性的异步步骤，
+ * 并通过 {@link com.yeven.thread.framework.pipeline.AsyncPipelineBuilder} 对它们进行流式编排组合。</p>
  */
 @AutoConfiguration
 @EnableConfigurationProperties(ThreadPoolProperties.class)
 public class ThreadPoolAutoConfiguration {
 
     /**
-     * IO executor bean.
+     * 注册用于处理 I/O 密集型阻塞操作的线程池 Bean。
      *
-     * @param properties pool properties
-     * @return IO executor
+     * @param properties 线程池配置属性
+     * @return IO 线程池 {@link ThreadPoolExecutor} 实例
      */
     @Bean(name = "ioExecutor", destroyMethod = "")
     @ConditionalOnMissingBean(name = "ioExecutor")
@@ -55,10 +55,10 @@ public class ThreadPoolAutoConfiguration {
     }
 
     /**
-     * CPU executor bean.
+     * 注册用于处理 CPU 密集型计算操作的线程池 Bean。
      *
-     * @param properties pool properties
-     * @return CPU executor
+     * @param properties 线程池配置属性
+     * @return CPU 线程池 {@link ThreadPoolExecutor} 实例
      */
     @Bean(name = "cpuExecutor", destroyMethod = "")
     @ConditionalOnMissingBean(name = "cpuExecutor")
@@ -66,15 +66,24 @@ public class ThreadPoolAutoConfiguration {
         return createExecutor("cpu", "cpu-pool", properties.getCpu());
     }
 
+    /**
+     * 将配置中的拒绝策略枚举转换为 Java 并发包标准的拒绝策略对象。
+     *
+     * <p>异步任务不能被静默丢弃，否则对应的 {@code CompletableFuture} 可能永远无法完成。
+     * 因此只映射可观测的饱和策略。</p>
+     */
     private RejectedExecutionHandler mapPolicy(ThreadPoolProperties.RejectionPolicy policy) {
         return switch (policy) {
             case ABORT -> new ThreadPoolExecutor.AbortPolicy();
             case CALLER_RUNS -> new ThreadPoolExecutor.CallerRunsPolicy();
-            case DISCARD -> new ThreadPoolExecutor.DiscardPolicy();
-            case DISCARD_OLDEST -> new ThreadPoolExecutor.DiscardOldestPolicy();
+            case DISCARD, DISCARD_OLDEST -> throw new IllegalStateException(
+                    "Silent rejection policy is not supported for async orchestration: " + policy);
         };
     }
 
+    /**
+     * 辅助方法：根据配置参数实际创建线程池。
+     */
     private ThreadPoolExecutor createExecutor(String poolName, String threadPrefix, ThreadPoolProperties.Pool pool) {
         pool.validate(poolName);
         return ThreadPoolFactory.create(
@@ -88,6 +97,9 @@ public class ThreadPoolAutoConfiguration {
         );
     }
 
+    /**
+     * 注册线程池生命周期优雅关闭管理的 Bean。
+     */
     @Bean(name = "threadPoolLifecycle", destroyMethod = "shutdown")
     @ConditionalOnMissingBean(name = "threadPoolLifecycle")
     public GracefulShutdown threadPoolLifecycle(
@@ -98,11 +110,11 @@ public class ThreadPoolAutoConfiguration {
     }
 
     /**
-     * Builds the execution mode to executor mapping.
+     * 注册执行器注册表 Bean，维护 {@link ExecutionMode} 与具体线程池的对应关系。
      *
-     * @param ioExecutor IO executor
-     * @param cpuExecutor CPU executor
-     * @return registry bean
+     * @param ioExecutor IO 线程池
+     * @param cpuExecutor CPU 线程池
+     * @return 线程池映射注册表 {@link ExecutorRegistry} 实例
      */
     @Bean
     @ConditionalOnMissingBean
@@ -117,10 +129,10 @@ public class ThreadPoolAutoConfiguration {
     }
 
     /**
-     * Default dispatcher bean.
+     * 注册默认的异步分发器 Bean。
      *
-     * @param executorRegistry executor registry
-     * @return dispatcher
+     * @param executorRegistry 线程池注册表
+     * @return 分发器 {@link ExecutionDispatcher} 实例
      */
     @Bean
     @ConditionalOnMissingBean
@@ -129,10 +141,10 @@ public class ThreadPoolAutoConfiguration {
     }
 
     /**
-     * Factory bean used by business code to convert {@code StepDefinition} into runnable steps.
+     * 注册异步步骤工厂 Bean，业务代码可以通过它将 {@link com.yeven.thread.framework.pipeline.StepDefinition} 包装为可运行的步骤。
      *
-     * @param executionDispatcher dispatcher
-     * @return step factory
+     * @param executionDispatcher 异步分发器
+     * @return 步骤工厂 {@link AsyncStepFactory} 实例
      */
     @Bean
     @ConditionalOnMissingBean
@@ -141,22 +153,21 @@ public class ThreadPoolAutoConfiguration {
     }
 
     /**
-     * Scans all initialized Spring beans and auto-registers methods annotated with
-     * {@link com.yeven.thread.framework.pipeline.AsyncStepBean}.
+     * 注册静态 Spring Bean 后置处理器，负责扫描容器中所有带有 {@link com.yeven.thread.framework.pipeline.AsyncStepBean} 注解的方法，
+     * 并动态将其声明和注册为 Spring 中的步骤定义与异步步骤 Bean。
      *
-     * @param asyncStepFactory step factory
-     * @return bean post processor
+     * @return 步骤注解后置处理器 {@link AsyncStepBeanPostProcessor} 实例
      */
     @Bean
     @ConditionalOnMissingBean
-    public static AsyncStepBeanPostProcessor asyncStepBeanPostProcessor(AsyncStepFactory asyncStepFactory) {
-        return new AsyncStepBeanPostProcessor(asyncStepFactory);
+    public static AsyncStepBeanPostProcessor asyncStepBeanPostProcessor() {
+        return new AsyncStepBeanPostProcessor();
     }
 
     /**
-     * Default logging decorator bean.
+     * 注册默认的步骤日志切面装饰器。
      *
-     * @return logging decorator
+     * @return 日志装饰器 {@link LoggingStepDecorator} 实例
      */
     @Bean
     @ConditionalOnMissingBean(LoggingStepDecorator.class)
@@ -165,10 +176,10 @@ public class ThreadPoolAutoConfiguration {
     }
 
     /**
-     * Decorator chain bean.
+     * 注册组合装饰器链 Bean，自动聚合 Spring 容器中所有声明的 {@link StepDecorator} 装饰器。
      *
-     * @param decoratorsProvider all available decorators from context
-     * @return composite decorator
+     * @param decoratorsProvider 容器中所有装饰器的提供者
+     * @return 组合装饰器 {@link CompositeStepDecorator} 实例
      */
     @Bean
     @ConditionalOnMissingBean(CompositeStepDecorator.class)
@@ -177,6 +188,9 @@ public class ThreadPoolAutoConfiguration {
         return new CompositeStepDecorator(decorators);
     }
 
+    /**
+     * 内部静态类：负责在 Spring 容器销毁时对注册的隔离线程池进行优雅的 shutdown 和资源释放。
+     */
     static final class GracefulShutdown {
         private final List<ExecutorService> executors;
 
@@ -185,9 +199,11 @@ public class ThreadPoolAutoConfiguration {
         }
 
         public void shutdown() {
+            // 首先触发所有执行器的 shutdown
             for (ExecutorService executor : executors) {
                 executor.shutdown();
             }
+            // 依次等待每个执行器处理完队列中的剩余任务，最多等待 30 秒
             for (ExecutorService executor : executors) {
                 awaitTermination(executor);
             }
@@ -196,6 +212,7 @@ public class ThreadPoolAutoConfiguration {
         private void awaitTermination(ExecutorService executor) {
             try {
                 if (!executor.awaitTermination(30, TimeUnit.SECONDS)) {
+                    // 超时后强行终止
                     executor.shutdownNow();
                 }
             } catch (InterruptedException ex) {

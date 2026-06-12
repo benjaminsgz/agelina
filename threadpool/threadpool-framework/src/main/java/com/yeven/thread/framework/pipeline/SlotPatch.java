@@ -4,10 +4,12 @@ import java.util.Arrays;
 import java.util.Objects;
 
 /**
- * Multi-slot write patch used by slow-path flexible steps.
+ * 多插槽写入补丁，供灵活性要求高的非热点路径步骤使用。
  *
- * <p>Hot path should prefer one-slot writers. Patch is intended for explicit
- * multi-slot result injection when one step must publish multiple derived values.</p>
+ * <p>
+ * 高性能热点路径（Hot Path）应优先使用单插槽写入。
+ * 本补丁类适用于一个步骤必须发布多个派生计算值的显式多插槽结果注入场景。
+ * </p>
  */
 public final class SlotPatch {
 
@@ -26,8 +28,7 @@ public final class SlotPatch {
             int secondSlot,
             Object secondValue,
             int[] slotIds,
-            Object[] values
-    ) {
+            Object[] values) {
         this.size = size;
         this.firstSlot = firstSlot;
         this.firstValue = firstValue;
@@ -38,40 +39,39 @@ public final class SlotPatch {
     }
 
     /**
-     * Creates patch for one slot.
+     * 为单个插槽创建写入补丁。
      *
-     * @param slotId slot index
-     * @param value slot value
-     * @return slot patch
+     * @param slotId 插槽整型 ID
+     * @param value  写入值
+     * @return 插槽写入补丁对象
      */
     public static SlotPatch of(int slotId, Object value) {
         return new SlotPatch(1, slotId, value, -1, null, null, null);
     }
 
     /**
-     * Creates patch for two slots.
+     * 为两个插槽创建写入补丁。
      *
-     * @param firstSlot first slot index
-     * @param firstValue first value
-     * @param secondSlot second slot index
-     * @param secondValue second value
-     * @return slot patch
+     * @param firstSlot   第一个插槽的整型 ID
+     * @param firstValue  第一个值
+     * @param secondSlot  第二个插槽的整型 ID
+     * @param secondValue 第二个值
+     * @return 插槽写入补丁对象
      */
     public static SlotPatch of(
             int firstSlot,
             Object firstValue,
             int secondSlot,
-            Object secondValue
-    ) {
+            Object secondValue) {
         return new SlotPatch(2, firstSlot, firstValue, secondSlot, secondValue, null, null);
     }
 
     /**
-     * Creates patch from arrays.
+     * 根据整型 ID 数组与值数组创建通用多插槽写入补丁。
      *
-     * @param slotIds slot indexes
-     * @param values slot values
-     * @return slot patch
+     * @param slotIds 插槽整型 ID 数组
+     * @param values  对应的写入值数组
+     * @return 插槽写入补丁对象
      */
     public static SlotPatch from(int[] slotIds, Object[] values) {
         Objects.requireNonNull(slotIds, "slotIds");
@@ -81,8 +81,7 @@ public final class SlotPatch {
         }
         if (slotIds.length != values.length) {
             throw new IllegalArgumentException(
-                    "slotIds and values length mismatch: " + slotIds.length + " vs " + values.length
-            );
+                    "slotIds and values length mismatch: " + slotIds.length + " vs " + values.length);
         }
         if (slotIds.length == 1) {
             return of(slotIds[0], values[0]);
