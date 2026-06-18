@@ -1,0 +1,51 @@
+name: "CodeQL Security Scan"
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    - cron: '30 4 * * 1' # 每周一 UTC 04:30 自动执行全量扫描
+
+jobs:
+  analyze:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'java-kotlin' ]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 初始化 CodeQL，加载 Java 核心安全规则与 Lint 检查规则
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: manual
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      # 编译整个 Java 代码以使 CodeQL 能跟踪抽象语法树 (AST)
+      - name: Build Java Code
+        working-directory: ./threadpool
+        run: |
+          mvn clean compile
+
+      # 执行漏洞与代码缺陷扫描，自动将分析生成的 SARIF 数据上传至 GitHub Security tab
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
