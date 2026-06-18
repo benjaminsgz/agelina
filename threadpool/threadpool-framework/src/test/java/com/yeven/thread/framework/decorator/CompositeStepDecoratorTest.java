@@ -22,20 +22,30 @@ class CompositeStepDecoratorTest {
         List<String> trace = Collections.synchronizedList(new ArrayList<>());
 
         // 创建两个装饰器，分别在步骤执行前后向 trace 列表里追加对应的开始与结束标志
-        StepDecorator decorator1 = (stepName, step) -> ctx -> {
-            trace.add("d1_start");
-            return step.apply(ctx).thenApply(res -> {
-                trace.add("d1_end");
-                return res;
-            });
+        StepDecorator decorator1 = new StepDecorator() {
+            @Override
+            public <C> AsyncStep<C> decorate(String stepName, AsyncStep<C> step) {
+                return ctx -> {
+                    trace.add("d1_start");
+                    return step.apply(ctx).thenApply(res -> {
+                        trace.add("d1_end");
+                        return res;
+                    });
+                };
+            }
         };
 
-        StepDecorator decorator2 = (stepName, step) -> ctx -> {
-            trace.add("d2_start");
-            return step.apply(ctx).thenApply(res -> {
-                trace.add("d2_end");
-                return res;
-            });
+        StepDecorator decorator2 = new StepDecorator() {
+            @Override
+            public <C> AsyncStep<C> decorate(String stepName, AsyncStep<C> step) {
+                return ctx -> {
+                    trace.add("d2_start");
+                    return step.apply(ctx).thenApply(res -> {
+                        trace.add("d2_end");
+                        return res;
+                    });
+                };
+            }
         };
 
         // 初始的基础步骤
