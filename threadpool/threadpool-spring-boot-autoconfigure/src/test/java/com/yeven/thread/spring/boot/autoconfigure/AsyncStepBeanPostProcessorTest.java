@@ -2,11 +2,11 @@ package com.yeven.thread.spring.boot.autoconfigure;
 
 import com.yeven.thread.framework.decorator.CompositeStepDecorator;
 import com.yeven.thread.framework.decorator.StepDecorator;
-import com.yeven.thread.framework.executor.ExecutionDispatcher;
-import com.yeven.thread.framework.executor.ExecutionMode;
+import com.yeven.thread.framework.constant.ExecutionMode;
+import com.yeven.thread.framework.dispatcher.ExecutionDispatcher;
 import com.yeven.thread.framework.pipeline.AsyncStep;
 import com.yeven.thread.framework.pipeline.AsyncStepBean;
-import com.yeven.thread.framework.pipeline.AsyncStepFactory;
+import com.yeven.thread.framework.factory.AsyncStepFactory;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CompletableFuture;

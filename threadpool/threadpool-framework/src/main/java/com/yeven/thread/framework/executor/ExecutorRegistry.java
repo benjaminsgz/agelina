@@ -3,10 +3,21 @@ package com.yeven.thread.framework.executor;
 import java.util.Map;
 import java.util.concurrent.Executor;
 
+import com.yeven.thread.framework.constant.ExecutionMode;
+
 /**
  * 线程池执行器注册表，维护任务执行模式到对应线程池实例的映射。
- *
- * <p>该注册表是只读的，在初始化时通过传入 Map 构建其副本，以保证线程安全。</p>
+ * 
+ * <p>
+ * <b>设计必要性与核心价值：</b>
+ * </p>
+ * <ul>
+ * <li><b>多线程隔离与池化管理：</b> 在实际的高性能业务系统中，不同的任务类型对 CPU、I/O 等系统资源的消耗迥异。通过本注册表，可以将特定的
+ * {@link ExecutionMode}（如 CPU 密集型、I/O 阻塞型）绑定至专门调优过的不同物理线程池实例，从而实现线程资源隔离，防止 I/O
+ * 阻塞型任务饿死 CPU 计算线程。</li>
+ * <li><b>不可变性与线程安全：</b> 采用不可变只读设计（使用
+ * {@link Map#copyOf}），在构建后不允许进行任何外部修改。这为高并发的多线程调度环境提供了极高的安全保障，无需任何额外的锁机制。</li>
+ * </ul>
  */
 public class ExecutorRegistry {
 

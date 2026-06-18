@@ -5,11 +5,12 @@ import java.util.function.Function;
 
 /**
  * 异步处理的基础抽象函数式接口。
- *
- * <p>
- * 该接口设计极简：一个输入参数，返回一个 {@link CompletableFuture} 输出结果。
- * 它可以非常方便地将多个异步处理链进行拼接组合，避免引入沉重的策略类或过渡对象。
- * </p>
+ * 
+ * <p><b>设计必要性与核心价值：</b></p>
+ * <ul>
+ *   <li><b>极简的单输入/单异步输出抽象：</b> 统一了 JDK 标准 {@link java.util.function.Function} 的异步形态，将传统同步计算模型无缝升级为基于 {@code CompletableFuture} 的非阻塞计算模型。</li>
+ *   <li><b>管道式逻辑组合能力：</b> 提供默认方法 {@link #thenAsync(AsyncFunction)}，允许开发者通过类似于 Linux 管道的函数式声明（Pipeline-like Composition），将多个不同输入输出类型的异步步骤串联起来，保持了极佳的扩展性与可读性。</li>
+ * </ul>
  *
  * @param <I> 输入参数类型
  * @param <O> 异步输出结果类型

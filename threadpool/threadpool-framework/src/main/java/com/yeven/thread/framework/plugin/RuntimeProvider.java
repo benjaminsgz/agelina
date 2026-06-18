@@ -1,6 +1,6 @@
 package com.yeven.thread.framework.plugin;
 
-import com.yeven.thread.framework.executor.ExecutionDispatcher;
+import com.yeven.thread.framework.dispatcher.ExecutionDispatcher;
 import com.yeven.thread.framework.executor.ExecutorRegistry;
 
 /**

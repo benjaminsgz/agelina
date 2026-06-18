@@ -11,8 +11,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 线程池工厂类，用于创建带有统一命名和配置规范的 {@link ThreadPoolExecutor} 实例。
- *
- * <p>通过该工厂，可以确保系统中不同服务、模块间线程的命名前缀、队列类型与拒绝策略策略保持一致，便于监控和排查。</p>
+ * 
+ * <p><b>设计必要性与核心价值：</b></p>
+ * <ul>
+ *   <li><b>防范线程资源失控：</b> Java 原生线程池如果配置不妥（例如使用无界队列），会导致 OOM 或由于拒绝策略配置不当导致任务无声丢失。本工厂对队列类型和拒绝策略进行了统一规约。</li>
+ *   <li><b>可诊断命名规范：</b> 强制为生成的物理线程提供带业务语义的前缀命名（如 "cpu-pool-x", "io-pool-x"），使生产环境进行 JStack、线程 Dump 调试或性能分析时，能迅速定位责任池，大幅提升故障排查效率。</li>
+ * </ul>
  */
 public final class ThreadPoolFactory {
 

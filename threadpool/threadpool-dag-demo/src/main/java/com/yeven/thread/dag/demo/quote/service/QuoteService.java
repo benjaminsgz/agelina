@@ -4,7 +4,7 @@ import com.yeven.thread.dag.demo.quote.context.QuoteContext;
 import com.yeven.thread.dag.demo.quote.dto.QuoteRequest;
 import com.yeven.thread.dag.demo.quote.dto.QuoteResponse;
 import com.yeven.thread.dag.demo.quote.flow.QuoteFlowFactory;
-import com.yeven.thread.framework.pipeline.SlotAsyncGraph;
+import com.yeven.thread.framework.graph.SlotAsyncGraph;
 import java.math.BigDecimal;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;

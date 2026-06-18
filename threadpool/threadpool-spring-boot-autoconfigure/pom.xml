@@ -84,6 +84,7 @@
                 <configuration>
                     <source>${java.version}</source>
                     <encoding>${project.build.sourceEncoding}</encoding>
+                    <doclint>none</doclint>
                 </configuration>
                 <executions>
                     <execution>

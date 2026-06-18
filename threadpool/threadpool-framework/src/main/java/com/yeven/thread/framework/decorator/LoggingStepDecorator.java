@@ -6,9 +6,12 @@ import java.util.logging.Logger;
 
 /**
  * 步骤日志装饰器，负责记录每一个异步步骤的执行耗时与失败异常。
- *
- * <p>该装饰器被设计为一个极低开销的默认可观测层。
- * 在生产级追踪系统中，建议实现自定义的 {@link StepDecorator}（例如接入 OpenTelemetry 或 SkyWalking）并将其注册为 Spring Bean。</p>
+ * 
+ * <p><b>设计必要性与核心价值：</b></p>
+ * <ul>
+ *   <li><b>透明的可观测性：</b> 提供了零侵入式的方法级耗时度量与异常抓取通道，无需为每个 AsyncStep 手写日志记录代码，确保了代码库的整洁和诊断记录的统一。</li>
+ *   <li><b>可扩展的微型切面：</b> 本身可作为一个低开销的默认实现，易于在本地调试或非生产环境下提供快速的执行流耗时记录，同时也充当了对接第三方监控（如 OpenTelemetry、SkyWalking）的参考标杆。</li>
+ * </ul>
  */
 public class LoggingStepDecorator implements StepDecorator {
 

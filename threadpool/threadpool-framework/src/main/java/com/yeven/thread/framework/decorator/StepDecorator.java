@@ -4,8 +4,12 @@ import com.yeven.thread.framework.pipeline.AsyncStep;
 
 /**
  * 步骤装饰器接口，用于在 {@link AsyncStep} 执行前后织入横切关注点（Cross-cutting Behavior）。
- *
- * <p>典型应用场景包括：日志记录、链路追踪（Tracing）、监控指标记录（Metrics）以及超时熔断保护等。</p>
+ * 
+ * <p><b>设计必要性与核心价值：</b></p>
+ * <ul>
+ *   <li><b>非侵入式切面增强（AOP）：</b> 遵循面向对象设计的装饰器模式，允许开发者在完全不修改步骤核心业务逻辑的情况下，动态织入各种基础设施行为。典型应用场景包括：分布式链路追踪、性能耗时度量、日志追踪标记注入、幂等校验及重试机制。</li>
+ *   <li><b>支持链式可配置的装饰器组合：</b> 极易实现多层拦截包装，为流程控制和诊断提供了高度的松耦合与组合性。</li>
+ * </ul>
  */
 public interface StepDecorator {
 

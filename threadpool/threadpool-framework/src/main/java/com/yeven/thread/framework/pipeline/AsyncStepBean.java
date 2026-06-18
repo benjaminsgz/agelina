@@ -1,18 +1,26 @@
 package com.yeven.thread.framework.pipeline;
 
-import com.yeven.thread.framework.executor.ExecutionMode;
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+import com.yeven.thread.framework.constant.ExecutionMode;
+
 /**
- * 标注一个方法为异步步骤。
- *
- * <p>被此注解标注的方法将被 Spring 自动扫描并注册为 {@link StepDefinition} 和 {@link AsyncStep} Bean。</p>
- *
- * <p>该注解标注的方法必须满足约束：接收且仅接收一个参数（上下文对象），并且返回值必须与该参数类型一致（即兼容上下文类型）。</p>
+ * 标注一个方法为异步步骤的注解。
+ * 
+ * <p>
+ * <b>设计必要性与核心价值：</b>
+ * </p>
+ * <ul>
+ * <li><b>声明式开发体验：</b> 提供声明式（Declarative）编程入口，开发只需在普通的 Spring Bean
+ * 方法上添加该注解，即可由框架自动识别并注册为 {@link com.yeven.thread.framework.definition.StepDefinition} 与 {@link AsyncStep}
+ * 实例，大幅简化了手工装配的样板代码。</li>
+ * <li><b>方法签名强规约：</b> 强力规约被标注方法的签名必须接收单个上下文对象，并返回相同类型的上下文对象，确保在 Spring
+ * 自动配置扫描时维持管道的类型一致性。</li>
+ * </ul>
  */
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)

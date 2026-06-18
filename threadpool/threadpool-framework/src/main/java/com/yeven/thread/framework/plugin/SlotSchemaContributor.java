@@ -1,6 +1,6 @@
 package com.yeven.thread.framework.plugin;
 
-import com.yeven.thread.framework.pipeline.SlotSymbolTable;
+import com.yeven.thread.framework.table.SlotSymbolTable;
 
 /**
  * 启动期声明并分配符号插槽（Symbolic Slots）的扩展程序接口。

@@ -4,9 +4,12 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * 维持上下文类型的异步管道步骤。
- *
- * <p>与通用的转换函数（Transform）不同，异步步骤在多个执行阶段中始终保持相同的上下文类型 {@code C}，
- * 用于在链路中依次更新或丰富相同的逻辑请求状态。</p>
+ * 
+ * <p><b>设计必要性与核心价值：</b></p>
+ * <ul>
+ *   <li><b>单一状态单向流转：</b> 在复杂的工作流中，由于管道步骤在执行各个阶段时始终持有并丰富相同的上下文实体类型 {@code C}，该设计消除了不同对象模型之间低效的来回转换。</li>
+ *   <li><b>强大的函数式链式组合：</b> 通过提供便捷的 {@link #then(AsyncStep)} 默认实现，使用 {@link CompletableFuture#thenCompose} 实现了任务的高阶函数式组合（Monadic Compose），让多步骤的顺序流转在声明式链条中一气呵成。</li>
+ * </ul>
  *
  * @param <C> 管道上下文类型
  */

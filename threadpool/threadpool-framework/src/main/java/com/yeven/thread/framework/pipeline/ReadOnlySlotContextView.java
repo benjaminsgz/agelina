@@ -2,9 +2,17 @@ package com.yeven.thread.framework.pipeline;
 
 /**
  * 只读上下文与插槽视图接口，暴露给插槽拓扑图的节点处理器（Handlers）。
- *
- * <p>该视图在单次 DAG 执行波次中保持业务上下文 {@code C} 的不可变性，
- * 并提供基于整型插槽索引的 O(1) 复杂度极速数据检索。</p>
+ * 
+ * <p>
+ * <b>设计必要性与核心价值：</b>
+ * </p>
+ * <ul>
+ * <li><b>安全只读隔离：</b>
+ * 在并发的有向无环图（DAG）执行过程中，节点（Handlers）之间只被允许通过共享只读视图访问上游产生的数据或初始业务上下文。该接口从设计上对写操作进行了强力隔离，仅暴露只读查询
+ * API，从而消除了业务逻辑无意修改其它节点数据而导致并发数据踩踏的安全隐患。</li>
+ * <li><b>O(1) 复杂度极速检索：</b> 提供基于原生整型插槽索引（Slot
+ * ID）的数据提取方法，帮助节点处理器在运行期以极高吞吐、零哈希冲突开销的方式瞬间读取依赖数据。</li>
+ * </ul>
  *
  * @param <C> 基础上下文类型
  */
@@ -58,8 +66,8 @@ public interface ReadOnlySlotContextView<C> {
      * 获取指定整型插槽的值，并自动进行显式类型转换。
      *
      * @param slotId 插槽整型 ID
-     * @param type 期望的值类型 Class 对象
-     * @param <T> 期望的值类型
+     * @param type   期望的值类型 Class 对象
+     * @param <T>    期望的值类型
      * @return 转换类型后的插槽值对象
      * @throws IllegalStateException 如果类型不匹配或插槽数据尚未就绪
      */
@@ -68,8 +76,7 @@ public interface ReadOnlySlotContextView<C> {
         if (!type.isInstance(value)) {
             throw new IllegalStateException(
                     "Slot[" + slotId + "] value type mismatch. expected="
-                            + type.getName() + ", actual=" + (value == null ? "null" : value.getClass().getName())
-            );
+                            + type.getName() + ", actual=" + (value == null ? "null" : value.getClass().getName()));
         }
         return type.cast(value);
     }
@@ -78,8 +85,8 @@ public interface ReadOnlySlotContextView<C> {
      * 获取指定符号插槽的值，并自动进行显式类型转换。
      *
      * @param slotSymbol 插槽符号名称
-     * @param type 期望的值类型 Class 对象
-     * @param <T> 期望的值类型
+     * @param type       期望的值类型 Class 对象
+     * @param <T>        期望的值类型
      * @return 转换类型后的插槽值对象
      * @throws IllegalStateException 如果类型不匹配或插槽数据尚未就绪
      */
@@ -88,8 +95,7 @@ public interface ReadOnlySlotContextView<C> {
         if (!type.isInstance(value)) {
             throw new IllegalStateException(
                     "Slot[" + slotSymbol + "] value type mismatch. expected="
-                            + type.getName() + ", actual=" + (value == null ? "null" : value.getClass().getName())
-            );
+                            + type.getName() + ", actual=" + (value == null ? "null" : value.getClass().getName()));
         }
         return type.cast(value);
     }

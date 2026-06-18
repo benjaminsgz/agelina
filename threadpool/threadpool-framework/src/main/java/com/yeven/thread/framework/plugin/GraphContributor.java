@@ -1,6 +1,6 @@
 package com.yeven.thread.framework.plugin;
 
-import com.yeven.thread.framework.pipeline.SlotAsyncGraphBuilder;
+import com.yeven.thread.framework.graph.SlotAsyncGraphBuilder;
 
 /**
  * 启动期向有向图（Graph）构建器贡献节点或终端定义的扩展程序接口。

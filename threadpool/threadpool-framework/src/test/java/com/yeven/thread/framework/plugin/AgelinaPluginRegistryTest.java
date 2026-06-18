@@ -1,10 +1,10 @@
 package com.yeven.thread.framework.plugin;
 
-import com.yeven.thread.framework.executor.DefaultExecutionDispatcher;
-import com.yeven.thread.framework.executor.ExecutionDispatcher;
-import com.yeven.thread.framework.executor.ExecutionMode;
+import com.yeven.thread.framework.constant.ExecutionMode;
+import com.yeven.thread.framework.dispatcher.DefaultExecutionDispatcher;
+import com.yeven.thread.framework.dispatcher.ExecutionDispatcher;
 import com.yeven.thread.framework.executor.ExecutorRegistry;
-import com.yeven.thread.framework.pipeline.SlotSymbolTable;
+import com.yeven.thread.framework.table.SlotSymbolTable;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
