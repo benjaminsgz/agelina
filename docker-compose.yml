@@ -15,6 +15,7 @@ services:
   # 运行后会等待应用启动并执行压测
   wrk-tester:
       image: williamyeh/wrk
+      platform: linux/amd64
       container_name: wrk-tester
       entrypoint: ["/bin/sh", "-c", "sleep 31536000"]
       volumes:
