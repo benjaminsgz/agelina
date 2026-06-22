@@ -8,7 +8,7 @@ import com.yeven.thread.framework.dispatcher.DefaultExecutionDispatcher;
 import com.yeven.thread.framework.dispatcher.ExecutionDispatcher;
 import com.yeven.thread.framework.executor.ExecutorRegistry;
 import com.yeven.thread.framework.executor.ThreadPoolFactory;
-import com.yeven.thread.framework.factory.AsyncStepFactory;
+import com.yeven.thread.framework.pipeline.core.AsyncStepFactory;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -36,7 +36,7 @@ import org.springframework.context.annotation.Bean;
  * </ul>
  *
  * <p>引入对应的 starter 后，业务模块可以直接注入 {@link AsyncStepFactory} 来便捷地创建具备执行模式路由特性的异步步骤，
- * 并通过 {@link com.yeven.thread.framework.pipeline.AsyncPipelineBuilder} 对它们进行流式编排组合。</p>
+ * 并通过 {@link com.yeven.thread.framework.pipeline.linear.AsyncPipelineBuilder} 对它们进行流式编排组合。</p>
  */
 @AutoConfiguration
 @EnableConfigurationProperties(ThreadPoolProperties.class)
@@ -141,7 +141,7 @@ public class ThreadPoolAutoConfiguration {
     }
 
     /**
-     * 注册异步步骤工厂 Bean，业务代码可以通过它将 {@link com.yeven.thread.framework.pipeline.StepDefinition} 包装为可运行的步骤。
+     * 注册异步步骤工厂 Bean，业务代码可以通过它将 {@link com.yeven.thread.framework.pipeline.core.StepDefinition} 包装为可运行的步骤。
      *
      * @param executionDispatcher 异步分发器
      * @return 步骤工厂 {@link AsyncStepFactory} 实例
@@ -153,7 +153,7 @@ public class ThreadPoolAutoConfiguration {
     }
 
     /**
-     * 注册静态 Spring Bean 后置处理器，负责扫描容器中所有带有 {@link com.yeven.thread.framework.pipeline.AsyncStepBean} 注解的方法，
+     * 注册静态 Spring Bean 后置处理器，负责扫描容器中所有带有 {@link com.yeven.thread.framework.pipeline.annotation.AsyncStepBean} 注解的方法，
      * 并动态将其声明和注册为 Spring 中的步骤定义与异步步骤 Bean。
      *
      * @return 步骤注解后置处理器 {@link AsyncStepBeanPostProcessor} 实例

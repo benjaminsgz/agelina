@@ -2,8 +2,8 @@ package com.yeven.thread.framework.runtime;
 
 import com.yeven.thread.framework.constant.ExecutionMode;
 import com.yeven.thread.framework.constant.SlotNodeRole;
-import com.yeven.thread.framework.pipeline.ReadOnlySlotContextView;
-import com.yeven.thread.framework.pipeline.SlotPatch;
+import com.yeven.thread.framework.pipeline.slot.ReadOnlySlotContextView;
+import com.yeven.thread.framework.pipeline.slot.SlotPatch;
 import com.yeven.thread.framework.definition.SlotAsyncGraphNodeDefinition;
 import java.util.Arrays;
 import java.util.Map;

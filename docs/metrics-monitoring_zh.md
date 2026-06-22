@@ -104,7 +104,7 @@ public class AgelinaMetricsConfiguration {
 
 ```java
 import com.yeven.thread.framework.executor.ExecutionMode;
-import com.yeven.thread.framework.pipeline.SlotGraphMetricsRecorder;
+import com.yeven.thread.framework.pipeline.graph.SlotGraphMetricsRecorder;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import org.springframework.stereotype.Component;

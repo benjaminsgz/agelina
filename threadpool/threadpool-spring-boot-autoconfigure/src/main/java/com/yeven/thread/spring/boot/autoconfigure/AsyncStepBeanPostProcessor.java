@@ -1,10 +1,10 @@
 package com.yeven.thread.spring.boot.autoconfigure;
 
 import com.yeven.thread.framework.decorator.CompositeStepDecorator;
-import com.yeven.thread.framework.pipeline.AsyncStep;
-import com.yeven.thread.framework.pipeline.AsyncStepBean;
-import com.yeven.thread.framework.definition.StepDefinition;
-import com.yeven.thread.framework.factory.AsyncStepFactory;
+import com.yeven.thread.framework.pipeline.core.AsyncStep;
+import com.yeven.thread.framework.pipeline.annotation.AsyncStepBean;
+import com.yeven.thread.framework.pipeline.core.AsyncStepFactory;
+import com.yeven.thread.framework.pipeline.core.StepDefinition;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Map;

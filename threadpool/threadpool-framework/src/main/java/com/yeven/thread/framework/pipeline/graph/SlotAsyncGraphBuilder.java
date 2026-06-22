@@ -1,15 +1,11 @@
-package com.yeven.thread.framework.graph;
+package com.yeven.thread.framework.pipeline.graph;
 
-import com.yeven.thread.framework.factory.AsyncStepFactory;
-import com.yeven.thread.framework.table.SlotSymbolTable;
-import com.yeven.thread.framework.definition.SlotAsyncGraphNodeDefinition;
 import com.yeven.thread.framework.constant.ExecutionMode;
-import com.yeven.thread.framework.constant.SlotNodeRole;
+import com.yeven.thread.framework.pipeline.core.AsyncStepFactory;
 import com.yeven.thread.framework.pipeline.slot.ReadOnlySlotContextView;
 import com.yeven.thread.framework.pipeline.slot.SlotPatch;
+import com.yeven.thread.framework.pipeline.slot.SlotSymbolTable;
 import com.yeven.thread.framework.pipeline.slot.SymbolicSlotPatch;
-import com.yeven.thread.framework.hook.SlotGraphMetricsRecorder;
-
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -24,21 +20,16 @@ import java.util.function.Function;
 
 /**
  * 基于插槽（Slot）的异步有向无环图（DAG）构建器。
- * 
+ *
  * <p>
- * <b>设计必要性与核心价值：</b>
+ * 设计核心目标：
  * </p>
- * <ul>
- * <li><b>图契约的静态编译与硬校验：</b>
- * 为了确保运行时执行的绝对高性能和线程安全，本构建器在启动构建阶段（{@link #build()}）充当了“编译器”的角色。它对定义的节点拓扑图进行严格的一系列静态分析与安全检查，提前拦截潜在的设计缺陷和运行时竞态。</li>
- * <li><b>拓扑排序与环路检测：</b> 基于三色标记的 DFS 算法，在编译期对节点进行排序，一旦发现循环依赖（Deadlock
- * Risk），以最直观的依赖链路路径报告错误，实现 Fail-Fast。</li>
- * <li><b>单写入者（Single Writer）协定校验：</b> 严格禁止对同一个数据插槽（Slot
- * ID）存在多个写入节点的声明，确保数据流的确定性和隔离性，免去运行时复杂的并发状态同步锁。</li>
- * <li><b>读写依赖闭包强校验（Dependency Closure）：</b> 这是本框架极具价值的校验规则：若节点 A 声明要读取插槽 X，而插槽
- * X 是由节点 B 写入的，构建器会在拓扑上确认节点 A 必须直接或间接依赖节点 B。这能彻底杜绝因为依赖遗漏导致的“并发读写竞争（Race
- * Condition）”，保证节点 A 执行时，B 生产的插槽数据已经就绪。</li>
- * </ul>
+ *
+ * <pre>
+ * 1) 极速热路径（Hot Path）：在运行期，节点间的数据传递与读取完全通过整型（int）插槽索引直接定位，免去 Map 的查找开销。
+ * 2) 启动期强校验（Fail-Fast）：在图构建时（build()）严格拒绝插槽写冲突（即只允许单写入者 Single Writer）。
+ * 3) 闭包图关系验证（Dependency Closure）：在启动期对所有读槽步骤的拓扑依赖路径进行验证，确保槽的读取者必须拓扑依赖于该槽的写入者。
+ * </pre>
  *
  * @param <C> 基础上下文类型
  */
@@ -107,6 +98,14 @@ public final class SlotAsyncGraphBuilder<C> {
 
     /**
      * Adds one one-slot writer node with symbolic slot names.
+     *
+     * @param name            node name
+     * @param dependencies    dependency node names
+     * @param mode            execution mode
+     * @param readSlotSymbols read slot symbols
+     * @param writeSlotSymbol write slot symbol
+     * @param evaluator       slot evaluator
+     * @return same builder
      */
     public synchronized SlotAsyncGraphBuilder<C> addSlotStep(
             String name,
@@ -171,6 +170,10 @@ public final class SlotAsyncGraphBuilder<C> {
     /**
      * Adds one multi-slot writer node with symbolic slots and symbolic patch return
      * value.
+     *
+     * <p>
+     * This is API-friendly sugar and is converted to int-indexed {@link SlotPatch}.
+     * </p>
      */
     public synchronized SlotAsyncGraphBuilder<C> addSymbolicPatchStep(
             String name,
@@ -243,6 +246,14 @@ public final class SlotAsyncGraphBuilder<C> {
 
     /**
      * Installs a metrics recorder for runtime node execution.
+     *
+     * <p>
+     * The default recorder is no-op, so applications that do not need metrics pay
+     * no timestamp cost.
+     * </p>
+     *
+     * @param metricsRecorder metrics sink
+     * @return same builder
      */
     public synchronized SlotAsyncGraphBuilder<C> withMetricsRecorder(SlotGraphMetricsRecorder metricsRecorder) {
         this.metricsRecorder = Objects.requireNonNull(metricsRecorder, "metricsRecorder");
@@ -250,38 +261,20 @@ public final class SlotAsyncGraphBuilder<C> {
     }
 
     /**
-     * 构建不可变的插槽异步图，并在构建时进行全方位的静态拓扑和契约校验。
-     *
-     * @return 构建好且通过完整契约验证的不可变异步有向无环图 {@link SlotAsyncGraph} 实例
+     * Builds immutable slot graph after full contract validation.
      */
     public synchronized SlotAsyncGraph<C> build() {
-        // [出口节点完备性校验]：必须指定一个终点出口节点以接收并返回最终汇总的上下文。
         if (terminalNodeName == null) {
             throw new IllegalStateException("Missing terminal node. Call addTerminalStep(...)");
         }
-
-        // [确定符号插槽表]：根据固定尺寸或动态构建器生成不可变的符号表映射实例。
         SlotSymbolTable symbolTable = resolveSymbolTable();
-
-        // [拓扑可达校验]：校验节点间引用的前置依赖节点是否真实在图定义中注册。
         validateDependencies();
-
-        // [边界退出校验]：确保终点出口节点（Terminal Node）之后没有任何后续下游节点，满足纯粹出口特征。
         validateTerminalIsGraphExit();
-
-        // [环路检测与拓扑排序]：基于 DFS 进行深层探测，如果存在循环依赖则立刻抛出异常；若无环则输出合法的拓扑执行序列。
         List<String> topologicalOrder = buildTopologicalOrder();
-
-        // [插槽索引有效区间校验]：确保所有的读写插槽 ID 均在合法的数组范围内 [0, slotCount-1]。
         validateSlotIndexesInRange(symbolTable);
-
-        // [单写者契约校验]：确保每个插槽 ID 仅有一个节点被允许写入，防止写冲突。
         validateSlotContracts(symbolTable);
-
-        // [读依赖闭包校验]：确认读取某个槽的节点，在拓扑上必然依赖写入该槽的节点，防止并发读写引发竞态。
         validateReadSlotDependencyClosure(symbolTable);
 
-        // [生成不可变 DAG 执行器]：将经过全面验证和静态编译的拓扑节点元数据打包，构建不可变且线程安全的 SlotAsyncGraph 实例。
         Map<String, SlotAsyncGraphNodeDefinition<C>> nodes = new LinkedHashMap<>(definitions);
         return new SlotAsyncGraph<>(
                 stepFactory,
@@ -326,17 +319,14 @@ public final class SlotAsyncGraphBuilder<C> {
     /**
      * 校验终点节点必须是真正的图出口。
      *
-     * <p>
-     * 如果允许终点节点之后继续挂下游节点，{@code execute()} 可能已经返回成功，
-     * 但图中仍有额外节点在后台运行或失败，破坏调用方对完成状态的判断。
-     * </p>
+     * <p>如果允许终点节点之后继续挂下游节点，{@code execute()} 可能已经返回成功，
+     * 但图中仍有额外节点在后台运行或失败，破坏调用方对完成状态的判断。</p>
      */
     private void validateTerminalIsGraphExit() {
         for (SlotAsyncGraphNodeDefinition<C> definition : definitions.values()) {
             if (definition.getName().equals(terminalNodeName)) {
                 continue;
             }
-            // [出口节点隔离性判定]：检查其它节点是否声明依赖了终点节点。如果是，则抛出异常以规避图的后台任务残留问题。
             if (definition.getDependencies().contains(terminalNodeName)) {
                 throw new IllegalStateException(
                         "Terminal node '" + terminalNodeName + "' must be graph exit, but '"
@@ -428,7 +418,7 @@ public final class SlotAsyncGraphBuilder<C> {
 
     /**
      * 校验读槽步骤的拓扑依赖闭包。
-     * 
+     *
      * <p>
      * 如果节点 A 声明要读取插槽 X，而插槽 X 是由节点 B 写入的，
      * 那么在 DAG 的节点依赖关系中，A 必须拓扑依赖于 B（即存在从 B 到 A 的直接或间接依赖路径）。
@@ -439,7 +429,6 @@ public final class SlotAsyncGraphBuilder<C> {
         // 第一步：收集每一个插槽 ID 的写入者节点名称
         Map<Integer, String> producerBySlot = new LinkedHashMap<>();
         for (SlotAsyncGraphNodeDefinition<C> definition : definitions.values()) {
-            // 只有可能修改/生产插槽值的节点（即 ROLE_PATCH 节点）参与写入校验
             if (definition.getRole() == SlotNodeRole.PATCH) {
                 for (int slotId : definition.getDeclaredWriteSlots()) {
                     producerBySlot.put(slotId, definition.getName());
@@ -450,18 +439,17 @@ public final class SlotAsyncGraphBuilder<C> {
         // 第二步：通过 DFS 缓存出每个节点的所有前置祖先节点集合
         Map<String, Set<String>> ancestorsByNode = buildAncestorsByNode();
 
-        // 第三步：验证每个读槽依赖的闭包性
+        // 第三步：验证每个读槽依赖 of 闭包性
         for (SlotAsyncGraphNodeDefinition<C> definition : definitions.values()) {
             Set<String> ancestors = ancestorsByNode.get(definition.getName());
             for (int slotId : definition.getReadSlots()) {
                 String producer = producerBySlot.get(slotId);
-                // [未绑定插槽读错误]：槽不能没有写入者，若没有写入者却被读取，抛出绑定异常
+                // 槽不能没有写入者（未绑定槽）
                 if (producer == null) {
                     throw new IllegalStateException(
                             "Node '" + definition.getName() + "' reads unbound slot " + symbolTable.describe(slotId));
                 }
-                // [拓扑依赖路径缺失判定]：如果当前读节点的祖先节点集合中不包含写入者节点，
-                // 则表明在执行节点时，写入者节点有可能仍未执行或在并发运行，造成数据不同步，抛出状态异常。
+                // 如果当前读节点的祖先节点集合中不包含写入者节点，则属于违规读取（会造成并发读写 Race Condition）
                 if (!ancestors.contains(producer)) {
                     throw new IllegalStateException(
                             "Node '" + definition.getName() + "' reads " + symbolTable.describe(slotId)

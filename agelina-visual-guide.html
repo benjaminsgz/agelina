@@ -1,0 +1,1830 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agelina Async Orchestrator 可视化深度导览</title>
+  <style>
+    :root {
+      --bg: #f7f9fb;
+      --surface: #ffffff;
+      --surface-2: #f0f4f7;
+      --ink: #17212b;
+      --muted: #5b6b7a;
+      --line: #d8e0e7;
+      --blue: #2b6cb0;
+      --teal: #15847f;
+      --green: #2f855a;
+      --amber: #b7791f;
+      --red: #c53030;
+      --violet: #6b46c1;
+      --shadow: 0 16px 40px rgba(23, 33, 43, 0.08);
+      --radius: 8px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(247, 249, 251, 0.98)),
+        repeating-linear-gradient(90deg, rgba(216, 224, 231, 0.35) 0 1px, transparent 1px 80px),
+        repeating-linear-gradient(0deg, rgba(216, 224, 231, 0.35) 0 1px, transparent 1px 80px);
+      color: var(--ink);
+      font-family: var(--sans);
+      line-height: 1.55;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    code,
+    pre {
+      font-family: var(--mono);
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 280px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow: auto;
+      border-right: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(14px);
+      padding: 24px 18px;
+    }
+
+    .brand {
+      display: grid;
+      gap: 8px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .brand-mark {
+      width: 44px;
+      height: 44px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      background: conic-gradient(from 210deg, var(--blue), var(--teal), var(--amber), var(--blue));
+      color: white;
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 20px;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+
+    .brand p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .nav {
+      display: grid;
+      gap: 4px;
+      margin-top: 20px;
+    }
+
+    .nav a {
+      border-radius: 8px;
+      color: var(--muted);
+      font-size: 14px;
+      padding: 9px 10px;
+    }
+
+    .nav a:hover,
+    .nav a.active {
+      background: var(--surface-2);
+      color: var(--ink);
+    }
+
+    .main {
+      min-width: 0;
+      padding: 34px min(4vw, 48px) 72px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(360px, 0.95fr);
+      gap: 28px;
+      align-items: center;
+      min-height: 520px;
+      padding: 22px 0 32px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--teal);
+      font-weight: 700;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0;
+      margin-bottom: 14px;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--teal);
+    }
+
+    h2,
+    h3,
+    h4,
+    p {
+      margin-top: 0;
+    }
+
+    .hero h2 {
+      margin: 0 0 18px;
+      max-width: 860px;
+      font-size: clamp(38px, 5vw, 72px);
+      line-height: 0.98;
+      letter-spacing: 0;
+    }
+
+    .hero-lead {
+      max-width: 760px;
+      color: var(--muted);
+      font-size: 18px;
+      margin-bottom: 24px;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .button {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--ink);
+      cursor: pointer;
+      font-weight: 700;
+      padding: 11px 14px;
+      box-shadow: 0 4px 12px rgba(23, 33, 43, 0.05);
+    }
+
+    .button.primary {
+      background: var(--ink);
+      border-color: var(--ink);
+      color: white;
+    }
+
+    .button:hover {
+      transform: translateY(-1px);
+    }
+
+    .system-art {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      padding: 18px;
+    }
+
+    .system-art svg {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .section {
+      padding: 54px 0 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: minmax(0, 0.75fr) minmax(280px, 0.25fr);
+      gap: 24px;
+      align-items: end;
+      margin-bottom: 24px;
+    }
+
+    .section h2 {
+      margin: 0;
+      font-size: clamp(28px, 3vw, 42px);
+      letter-spacing: 0;
+      line-height: 1.08;
+    }
+
+    .section-intro {
+      color: var(--muted);
+      margin: 10px 0 0;
+      max-width: 820px;
+    }
+
+    .callout {
+      border-left: 4px solid var(--teal);
+      background: rgba(21, 132, 127, 0.08);
+      border-radius: 8px;
+      padding: 14px 16px;
+      color: #214846;
+      font-size: 14px;
+    }
+
+    .grid {
+      display: grid;
+      gap: 16px;
+    }
+
+    .grid.cols-2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .grid.cols-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .grid.cols-4 {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .panel,
+    .tile {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 8px 22px rgba(23, 33, 43, 0.05);
+    }
+
+    .panel {
+      padding: 20px;
+    }
+
+    .tile {
+      padding: 16px;
+    }
+
+    .tile h3,
+    .panel h3,
+    .panel h4 {
+      margin-bottom: 8px;
+      letter-spacing: 0;
+    }
+
+    .tile p,
+    .panel p,
+    .panel li {
+      color: var(--muted);
+    }
+
+    .metric {
+      display: grid;
+      gap: 5px;
+      min-height: 112px;
+      border-top: 4px solid var(--blue);
+    }
+
+    .metric:nth-child(2) {
+      border-top-color: var(--teal);
+    }
+
+    .metric:nth-child(3) {
+      border-top-color: var(--amber);
+    }
+
+    .metric:nth-child(4) {
+      border-top-color: var(--violet);
+    }
+
+    .metric strong {
+      font-size: 28px;
+      line-height: 1;
+    }
+
+    .module-map {
+      display: grid;
+      grid-template-columns: minmax(260px, 0.35fr) minmax(0, 0.65fr);
+      gap: 18px;
+    }
+
+    .module-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .module-btn {
+      width: 100%;
+      text-align: left;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      color: var(--ink);
+      border-radius: 8px;
+      cursor: pointer;
+      padding: 13px 14px;
+      display: grid;
+      gap: 3px;
+    }
+
+    .module-btn strong {
+      font-size: 15px;
+    }
+
+    .module-btn span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .module-btn.active {
+      border-color: var(--teal);
+      box-shadow: inset 4px 0 0 var(--teal);
+      background: rgba(21, 132, 127, 0.06);
+    }
+
+    .module-detail {
+      min-height: 360px;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 12px 0 0;
+    }
+
+    .tag {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 12px;
+      padding: 4px 9px;
+      background: var(--surface);
+    }
+
+    .flow {
+      display: grid;
+      gap: 12px;
+    }
+
+    .flow-row {
+      display: grid;
+      grid-template-columns: 160px minmax(0, 1fr);
+      gap: 12px;
+      align-items: stretch;
+    }
+
+    .lane-label {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface-2);
+      padding: 13px;
+      font-weight: 800;
+    }
+
+    .lane-track {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      padding: 10px;
+      min-height: 62px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      overflow-x: auto;
+    }
+
+    .step {
+      flex: 0 0 auto;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: white;
+      padding: 9px 11px;
+      min-width: 128px;
+      font-size: 13px;
+      box-shadow: 0 5px 14px rgba(23, 33, 43, 0.06);
+    }
+
+    .step.io {
+      border-color: rgba(43, 108, 176, 0.45);
+      background: rgba(43, 108, 176, 0.08);
+    }
+
+    .step.cpu {
+      border-color: rgba(183, 121, 31, 0.45);
+      background: rgba(183, 121, 31, 0.1);
+    }
+
+    .step.direct {
+      border-color: rgba(47, 133, 90, 0.45);
+      background: rgba(47, 133, 90, 0.1);
+    }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+
+    .tab {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      cursor: pointer;
+      padding: 9px 12px;
+      font-weight: 700;
+      color: var(--muted);
+    }
+
+    .tab.active {
+      color: white;
+      border-color: var(--ink);
+      background: var(--ink);
+    }
+
+    .tab-panel {
+      display: none;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
+    .dag-board {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .dag-stage {
+      background: #fbfcfd;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      overflow: auto;
+    }
+
+    .dag-node {
+      cursor: pointer;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+
+    .dag-node rect {
+      stroke-width: 2;
+    }
+
+    .dag-node.active rect {
+      stroke: var(--red);
+      filter: drop-shadow(0 6px 8px rgba(197, 48, 48, 0.22));
+    }
+
+    .dag-node.done rect {
+      stroke: var(--green);
+    }
+
+    .dag-node.dim {
+      opacity: 0.38;
+    }
+
+    .slot-grid {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .slot {
+      display: grid;
+      grid-template-columns: 34px minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px 10px;
+      background: var(--surface);
+      font-size: 13px;
+    }
+
+    .slot .index {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      background: var(--surface-2);
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+
+    .slot.ready {
+      border-color: rgba(47, 133, 90, 0.45);
+      background: rgba(47, 133, 90, 0.07);
+    }
+
+    .slot .value {
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+
+    .code-block {
+      background: #111820;
+      color: #dce7f1;
+      border-radius: 8px;
+      overflow: auto;
+      padding: 16px;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .code-block .comment {
+      color: #88a1b5;
+    }
+
+    .code-block .kw {
+      color: #8bd5ca;
+    }
+
+    .code-block .str {
+      color: #f6c177;
+    }
+
+    .matrix {
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 720px;
+      font-size: 14px;
+    }
+
+    th,
+    td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: var(--surface-2);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0;
+      color: var(--muted);
+    }
+
+    td code {
+      color: var(--blue);
+      font-size: 12px;
+    }
+
+    .search {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) auto;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .search input {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 11px 12px;
+      font: inherit;
+    }
+
+    .timeline {
+      position: relative;
+      display: grid;
+      gap: 12px;
+      padding-left: 22px;
+    }
+
+    .timeline:before {
+      content: "";
+      position: absolute;
+      left: 7px;
+      top: 6px;
+      bottom: 6px;
+      width: 2px;
+      background: var(--line);
+    }
+
+    .event {
+      position: relative;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+    }
+
+    .event:before {
+      content: "";
+      position: absolute;
+      left: -21px;
+      top: 18px;
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      background: var(--teal);
+      border: 2px solid var(--surface);
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 10px;
+    }
+
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .swatch {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      display: inline-block;
+    }
+
+    .footer {
+      color: var(--muted);
+      padding: 32px 0 0;
+      font-size: 13px;
+    }
+
+    @media (max-width: 1100px) {
+      .app {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        position: static;
+        height: auto;
+      }
+
+      .nav {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .hero,
+      .section-head,
+      .module-map,
+      .dag-board,
+      .grid.cols-2,
+      .grid.cols-3,
+      .grid.cols-4 {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .main {
+        padding: 22px 16px 48px;
+      }
+
+      .hero {
+        min-height: auto;
+      }
+
+      .flow-row {
+        grid-template-columns: 1fr;
+      }
+
+      .search {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">A</div>
+        <h1>Agelina 可视化导览</h1>
+        <p>从模块、线程池、Pipeline、DAG 到 Spring 集成的一页式深度地图。</p>
+      </div>
+      <nav class="nav" aria-label="页面目录">
+        <a class="active" href="#overview">项目定位</a>
+        <a href="#modules">模块地图</a>
+        <a href="#execution">执行模型</a>
+        <a href="#orchestration">编排内核</a>
+        <a href="#pipeline">AsyncPipeline</a>
+        <a href="#dag">SlotAsyncGraph</a>
+        <a href="#spring">Spring 集成</a>
+        <a href="#demos">Demo 业务流</a>
+        <a href="#runtime">运行与压测</a>
+        <a href="#source">源码索引</a>
+        <a href="#learn">阅读路线</a>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <section id="overview" class="hero">
+        <div>
+          <div class="eyebrow"><span class="dot"></span> Async orchestration framework</div>
+          <h2>Agelina 的核心是一个把步骤编译成执行计划的异步编排内核。</h2>
+          <p class="hero-lead">
+            这个项目最值得理解的不是 demo，而是“编排”这件事本身：
+            如何把步骤声明成元数据，如何在构建期验证依赖，如何在运行期推进 ready 节点，
+            以及如何把数据依赖和线程资源隔离放进同一个执行模型里。
+          </p>
+          <div class="hero-actions">
+            <a class="button primary" href="#orchestration">看编排内核</a>
+            <a class="button" href="#dag">看 DAG 运行时</a>
+            <a class="button" href="#source">按源码理解</a>
+          </div>
+        </div>
+
+        <div class="system-art" aria-label="项目整体架构图">
+          <svg viewBox="0 0 720 540" role="img">
+            <defs>
+              <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#5b6b7a"></path>
+              </marker>
+              <linearGradient id="g1" x1="0" x2="1">
+                <stop offset="0" stop-color="#2b6cb0"></stop>
+                <stop offset="1" stop-color="#15847f"></stop>
+              </linearGradient>
+            </defs>
+            <rect x="18" y="18" width="684" height="504" rx="8" fill="#fbfcfd" stroke="#d8e0e7"></rect>
+            <rect x="56" y="58" width="170" height="74" rx="8" fill="#eaf2fb" stroke="#2b6cb0"></rect>
+            <text x="141" y="88" text-anchor="middle" font-size="16" font-weight="800" fill="#17212b">业务 Controller</text>
+            <text x="141" y="112" text-anchor="middle" font-size="12" fill="#5b6b7a">auth / quote</text>
+            <rect x="284" y="44" width="170" height="102" rx="8" fill="#eef8f6" stroke="#15847f"></rect>
+            <text x="369" y="78" text-anchor="middle" font-size="16" font-weight="800" fill="#17212b">编排模型</text>
+            <text x="369" y="103" text-anchor="middle" font-size="12" fill="#5b6b7a">AsyncPipeline</text>
+            <text x="369" y="123" text-anchor="middle" font-size="12" fill="#5b6b7a">SlotAsyncGraph</text>
+            <rect x="512" y="58" width="150" height="74" rx="8" fill="#fff7e8" stroke="#b7791f"></rect>
+            <text x="587" y="88" text-anchor="middle" font-size="16" font-weight="800" fill="#17212b">执行资源</text>
+            <text x="587" y="112" text-anchor="middle" font-size="12" fill="#5b6b7a">IO / CPU / DIRECT</text>
+            <line x1="226" y1="95" x2="284" y2="95" stroke="#5b6b7a" stroke-width="2" marker-end="url(#arrow)"></line>
+            <line x1="454" y1="95" x2="512" y2="95" stroke="#5b6b7a" stroke-width="2" marker-end="url(#arrow)"></line>
+
+            <rect x="82" y="224" width="178" height="96" rx="8" fill="#ffffff" stroke="#d8e0e7"></rect>
+            <text x="171" y="252" text-anchor="middle" font-size="15" font-weight="800" fill="#17212b">StepDefinition</text>
+            <text x="171" y="277" text-anchor="middle" font-size="12" fill="#5b6b7a">name + mode + handler</text>
+            <text x="171" y="297" text-anchor="middle" font-size="12" fill="#5b6b7a">声明式步骤元数据</text>
+            <rect x="328" y="224" width="178" height="96" rx="8" fill="#ffffff" stroke="#d8e0e7"></rect>
+            <text x="417" y="252" text-anchor="middle" font-size="15" font-weight="800" fill="#17212b">AsyncStepFactory</text>
+            <text x="417" y="277" text-anchor="middle" font-size="12" fill="#5b6b7a">包装 CompletableFuture</text>
+            <text x="417" y="297" text-anchor="middle" font-size="12" fill="#5b6b7a">按 mode 分发执行</text>
+            <line x1="260" y1="272" x2="328" y2="272" stroke="#5b6b7a" stroke-width="2" marker-end="url(#arrow)"></line>
+            <line x1="369" y1="146" x2="369" y2="224" stroke="#5b6b7a" stroke-width="2" marker-end="url(#arrow)"></line>
+
+            <rect x="96" y="390" width="140" height="72" rx="8" fill="#eaf2fb" stroke="#2b6cb0"></rect>
+            <text x="166" y="420" text-anchor="middle" font-size="14" font-weight="800" fill="#17212b">IO Pool</text>
+            <text x="166" y="443" text-anchor="middle" font-size="12" fill="#5b6b7a">DB/RPC/cache</text>
+            <rect x="290" y="390" width="140" height="72" rx="8" fill="#fff7e8" stroke="#b7791f"></rect>
+            <text x="360" y="420" text-anchor="middle" font-size="14" font-weight="800" fill="#17212b">CPU Pool</text>
+            <text x="360" y="443" text-anchor="middle" font-size="12" fill="#5b6b7a">bcrypt/discount</text>
+            <rect x="484" y="390" width="140" height="72" rx="8" fill="#eef8f6" stroke="#2f855a"></rect>
+            <text x="554" y="420" text-anchor="middle" font-size="14" font-weight="800" fill="#17212b">DIRECT</text>
+            <text x="554" y="443" text-anchor="middle" font-size="12" fill="#5b6b7a">轻量同步步骤</text>
+            <path d="M417 320 C417 354 166 352 166 390" fill="none" stroke="#5b6b7a" stroke-width="2" marker-end="url(#arrow)"></path>
+            <path d="M417 320 C417 354 360 352 360 390" fill="none" stroke="#5b6b7a" stroke-width="2" marker-end="url(#arrow)"></path>
+            <path d="M417 320 C417 354 554 352 554 390" fill="none" stroke="#5b6b7a" stroke-width="2" marker-end="url(#arrow)"></path>
+
+            <rect x="276" y="168" width="226" height="32" rx="8" fill="url(#g1)" opacity="0.14"></rect>
+            <text x="389" y="189" text-anchor="middle" font-size="12" font-weight="700" fill="#17212b">Spring Boot starter 自动发布基础设施 Bean</text>
+          </svg>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="grid cols-4">
+          <div class="tile metric">
+            <strong>2</strong>
+            <span>核心编排模型</span>
+            <p>线性 Pipeline 与并行 Slot DAG 覆盖两类常见业务流。</p>
+          </div>
+          <div class="tile metric">
+            <strong>3</strong>
+            <span>执行模式</span>
+            <p>IO、CPU、DIRECT 明确表达线程资源归属。</p>
+          </div>
+          <div class="tile metric">
+            <strong>5</strong>
+            <span>Maven 模块</span>
+            <p>framework、starter、autoconfigure、auth demo、dag demo。</p>
+          </div>
+          <div class="tile metric">
+            <strong>0 map</strong>
+            <span>DAG 热路径</span>
+            <p>符号槽在构建期编译为数组索引，运行期避免 Map 查找。</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="modules" class="section">
+        <div class="section-head">
+          <div>
+            <h2>模块地图：先看边界，再看调用关系</h2>
+            <p class="section-intro">
+              项目根目录下的 <code>threadpool/</code> 是 Maven reactor。点击左侧模块可以看它承担的职责、关键类和上下游依赖。
+            </p>
+          </div>
+          <div class="callout">理解顺序：先抓住 framework 是核心，再看 autoconfigure 如何把核心放进 Spring 容器，最后看两个 demo 如何消费框架。</div>
+        </div>
+        <div class="module-map">
+          <div class="module-list" id="moduleList"></div>
+          <div class="module-detail panel">
+            <h3 id="moduleTitle">threadpool-framework</h3>
+            <p id="moduleDesc"></p>
+            <div class="grid cols-2">
+              <div>
+                <h4>关键职责</h4>
+                <ul id="moduleJobs"></ul>
+              </div>
+              <div>
+                <h4>核心文件</h4>
+                <ul id="moduleFiles"></ul>
+              </div>
+            </div>
+            <div class="tag-row" id="moduleTags"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="execution" class="section">
+        <div class="section-head">
+          <div>
+            <h2>执行模型：每个步骤都声明自己跑在哪里</h2>
+            <p class="section-intro">
+              Agelina 最核心的抽象是 <code>StepDefinition(name, mode, handler)</code>。
+              <code>AsyncStepFactory</code> 把它变成 <code>AsyncStep</code>，再交给 <code>DefaultExecutionDispatcher</code> 按模式分发。
+            </p>
+          </div>
+          <div class="callout">最新代码中，<code>DISCARD</code> 和 <code>DISCARD_OLDEST</code> 会被启动校验拒绝，因为静默丢弃会让 Future 永远不完成。</div>
+        </div>
+
+        <div class="flow" aria-label="执行模式泳道图">
+          <div class="flow-row">
+            <div class="lane-label">调用线程</div>
+            <div class="lane-track">
+              <div class="step direct">Controller 接收请求</div>
+              <div class="step direct">创建初始 Context</div>
+              <div class="step direct">触发 Pipeline / Graph</div>
+            </div>
+          </div>
+          <div class="flow-row">
+            <div class="lane-label">IO Pool</div>
+            <div class="lane-track">
+              <div class="step io">loadUser</div>
+              <div class="step io">loadInventory</div>
+              <div class="step io">loadProductAndBaseAmount</div>
+              <div class="step io">loadMemberProfile</div>
+            </div>
+          </div>
+          <div class="flow-row">
+            <div class="lane-label">CPU Pool</div>
+            <div class="lane-track">
+              <div class="step cpu">verifyPassword</div>
+              <div class="step cpu">issueToken</div>
+              <div class="step cpu">calculateMemberDiscount</div>
+              <div class="step cpu">calculateCouponDiscount</div>
+            </div>
+          </div>
+          <div class="flow-row">
+            <div class="lane-label">DIRECT</div>
+            <div class="lane-track">
+              <div class="step direct">validateRequest</div>
+              <div class="step direct">buildQuote</div>
+              <div class="step direct">轻量装配和返回</div>
+            </div>
+          </div>
+        </div>
+        <div class="legend">
+          <span><i class="swatch" style="background:#eaf2fb;border:1px solid #2b6cb0"></i>IO: 阻塞和等待</span>
+          <span><i class="swatch" style="background:#fff7e8;border:1px solid #b7791f"></i>CPU: 计算和加密</span>
+          <span><i class="swatch" style="background:#eef8f6;border:1px solid #2f855a"></i>DIRECT: 极短同步逻辑</span>
+        </div>
+      </section>
+
+      <section id="orchestration" class="section">
+        <div class="section-head">
+          <div>
+            <h2>编排内核：Agelina 到底在“编排”什么</h2>
+            <p class="section-intro">
+              编排不是业务逻辑本身，而是业务逻辑之间的执行关系。Agelina 把每个业务动作拆成
+              <code>StepDefinition</code>，再根据“顺序依赖”或“图依赖”生成执行计划。你可以把它理解成：
+              业务函数负责算什么，编排内核负责什么时候算、在哪里算、算完唤醒谁、失败时怎么收束。
+            </p>
+          </div>
+          <div class="callout">核心源码阅读顺序：<code>StepDefinition</code> -> <code>AsyncStepFactory</code> -> <code>AsyncPipeline</code> / <code>SlotAsyncGraphBuilder</code> -> <code>SlotAsyncGraph</code>。</div>
+        </div>
+
+        <div class="grid cols-4">
+          <div class="tile">
+            <h3>声明层</h3>
+            <p>把业务函数变成带名字和执行模式的步骤：<code>name</code>、<code>mode</code>、<code>handler</code>。</p>
+          </div>
+          <div class="tile">
+            <h3>计划层</h3>
+            <p>Pipeline 生成线性链；Graph 生成拓扑序、依赖表、slot 表和 terminal 出口。</p>
+          </div>
+          <div class="tile">
+            <h3>运行层</h3>
+            <p>每次执行创建独立运行帧，记录剩余依赖、slot 值、ready bit 和最终结果。</p>
+          </div>
+          <div class="tile">
+            <h3>调度层</h3>
+            <p>根据 <code>ExecutionMode</code> 路由到 IO、CPU 或当前线程，并把完成事件回传给编排器。</p>
+          </div>
+        </div>
+
+        <div class="grid cols-2" style="margin-top:18px">
+          <div class="panel">
+            <h3>编排器的输入不是“代码顺序”，而是“依赖关系”</h3>
+            <p>
+              在 Pipeline 中，依赖关系天然等于添加顺序：第 N 步必须等第 N-1 步成功。
+              在 SlotAsyncGraph 中，依赖关系被显式拆成两类：
+            </p>
+            <div class="matrix">
+              <table>
+                <thead>
+                  <tr>
+                    <th>关系</th>
+                    <th>在哪里声明</th>
+                    <th>编排器用它做什么</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>控制依赖</td>
+                    <td><code>dependencies</code></td>
+                    <td>决定一个节点什么时候可以启动，编译为 <code>remainingDependencies</code> 和 <code>dependentsByNode</code>。</td>
+                  </tr>
+                  <tr>
+                    <td>数据依赖</td>
+                    <td><code>readSlots</code> / <code>writeSlots</code></td>
+                    <td>决定节点能读写哪些中间值，构建期验证读槽者必须依赖写槽者。</td>
+                  </tr>
+                  <tr>
+                    <td>资源依赖</td>
+                    <td><code>ExecutionMode</code></td>
+                    <td>决定步骤被路由到 IO pool、CPU pool，还是直接在调用线程执行。</td>
+                  </tr>
+                  <tr>
+                    <td>完成依赖</td>
+                    <td><code>terminal</code></td>
+                    <td>决定整个图什么时候对调用方完成，并保证 terminal 是图出口。</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>两种编排模型的本质区别</h3>
+            <svg viewBox="0 0 760 430" width="100%" role="img" aria-label="Pipeline 和 Graph 编排模型对比">
+              <defs>
+                <marker id="orchArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#5b6b7a"></path>
+                </marker>
+              </defs>
+              <text x="34" y="34" font-size="16" font-weight="800" fill="#17212b">AsyncPipeline：单通道顺序推进</text>
+              <rect x="40" y="62" width="118" height="56" rx="8" fill="#ffffff" stroke="#d8e0e7"></rect>
+              <text x="99" y="96" text-anchor="middle" font-size="13" font-weight="700">step A</text>
+              <rect x="220" y="62" width="118" height="56" rx="8" fill="#ffffff" stroke="#d8e0e7"></rect>
+              <text x="279" y="96" text-anchor="middle" font-size="13" font-weight="700">step B</text>
+              <rect x="400" y="62" width="118" height="56" rx="8" fill="#ffffff" stroke="#d8e0e7"></rect>
+              <text x="459" y="96" text-anchor="middle" font-size="13" font-weight="700">step C</text>
+              <rect x="580" y="62" width="118" height="56" rx="8" fill="#eef8f6" stroke="#2f855a"></rect>
+              <text x="639" y="96" text-anchor="middle" font-size="13" font-weight="700">result</text>
+              <line x1="158" y1="90" x2="220" y2="90" stroke="#5b6b7a" stroke-width="2" marker-end="url(#orchArrow)"></line>
+              <line x1="338" y1="90" x2="400" y2="90" stroke="#5b6b7a" stroke-width="2" marker-end="url(#orchArrow)"></line>
+              <line x1="518" y1="90" x2="580" y2="90" stroke="#5b6b7a" stroke-width="2" marker-end="url(#orchArrow)"></line>
+              <text x="40" y="154" font-size="12" fill="#5b6b7a">调度公式：current.apply(ctx).thenCompose(next::apply)</text>
+
+              <text x="34" y="218" font-size="16" font-weight="800" fill="#17212b">SlotAsyncGraph：多通道 ready 节点推进</text>
+              <rect x="52" y="250" width="112" height="52" rx="8" fill="#eef8f6" stroke="#2f855a"></rect>
+              <text x="108" y="282" text-anchor="middle" font-size="13" font-weight="700">root</text>
+              <rect x="242" y="214" width="112" height="52" rx="8" fill="#eaf2fb" stroke="#2b6cb0"></rect>
+              <text x="298" y="246" text-anchor="middle" font-size="13" font-weight="700">IO A</text>
+              <rect x="242" y="306" width="112" height="52" rx="8" fill="#eaf2fb" stroke="#2b6cb0"></rect>
+              <text x="298" y="338" text-anchor="middle" font-size="13" font-weight="700">IO B</text>
+              <rect x="444" y="260" width="112" height="52" rx="8" fill="#fff7e8" stroke="#b7791f"></rect>
+              <text x="500" y="292" text-anchor="middle" font-size="13" font-weight="700">CPU join</text>
+              <rect x="626" y="260" width="112" height="52" rx="8" fill="#eef8f6" stroke="#2f855a"></rect>
+              <text x="682" y="292" text-anchor="middle" font-size="13" font-weight="700">terminal</text>
+              <path d="M164 276 C202 276 204 240 242 240" fill="none" stroke="#5b6b7a" stroke-width="2" marker-end="url(#orchArrow)"></path>
+              <path d="M164 276 C202 276 204 332 242 332" fill="none" stroke="#5b6b7a" stroke-width="2" marker-end="url(#orchArrow)"></path>
+              <path d="M354 240 C404 240 394 286 444 286" fill="none" stroke="#5b6b7a" stroke-width="2" marker-end="url(#orchArrow)"></path>
+              <path d="M354 332 C404 332 394 286 444 286" fill="none" stroke="#5b6b7a" stroke-width="2" marker-end="url(#orchArrow)"></path>
+              <line x1="556" y1="286" x2="626" y2="286" stroke="#5b6b7a" stroke-width="2" marker-end="url(#orchArrow)"></line>
+              <text x="40" y="392" font-size="12" fill="#5b6b7a">调度公式：节点完成 -> 下游 remainingDependencies - 1 -> 归零则 dispatch</text>
+            </svg>
+          </div>
+        </div>
+
+        <div class="grid cols-2" style="margin-top:18px">
+          <div class="panel">
+            <h3>SlotAsyncGraph 的构建期编译过程</h3>
+            <div class="timeline">
+              <div class="event"><strong>1. 收集定义</strong><br><code>definitions</code> 保存每个节点的名称、mode、dependencies、readSlots、writeSlots 和 evaluator。</div>
+              <div class="event"><strong>2. 解析符号槽</strong><br><code>SlotSymbolTable.Builder</code> 把 <code>"memberLevel"</code> 这类名字分配为稳定 int slot id。</div>
+              <div class="event"><strong>3. 校验控制图</strong><br>检查缺失依赖、重复节点、环，并生成拓扑序。</div>
+              <div class="event"><strong>4. 校验数据图</strong><br>检查单写者原则，读 slot 的节点必须在控制依赖上依赖对应 writer。</div>
+              <div class="event"><strong>5. 编译运行结构</strong><br>生成 <code>RuntimeNode[]</code>、<code>dependentsByNode</code>、<code>initialRemainingDependencies</code>、<code>terminalPath</code>。</div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>SlotAsyncGraph 的运行期推进算法</h3>
+            <pre class="code-block">execute(context):
+  frame = new GraphFrame(context)
+  for each node:
+    if initialRemainingDependencies[node] == 0:
+      dispatchNode(node, frame)
+  return frame.result
+
+completeNode(node, error):
+  if error:
+    if node is on terminalPath:
+      result.completeExceptionally(error)
+    return
+
+  if node is terminal:
+    result.complete(terminalResult)
+
+  for each dependent in dependentsByNode[node]:
+    remaining = atomicDecrement(dependent)
+    if remaining == 0:
+      dispatchNode(dependent, frame)</pre>
+            <p>
+              这个算法的重点是：Graph 不需要一个中央循环反复扫描所有节点。节点完成事件本身会推动下游依赖计数递减，
+              计数归零的瞬间就触发下一批节点。
+            </p>
+          </div>
+        </div>
+
+        <div class="grid cols-3" style="margin-top:18px">
+          <div class="tile">
+            <h3>为什么要有 slot</h3>
+            <p>如果节点之间共享一个 <code>Map</code>，热路径会有哈希、装箱和并发访问成本。slot 把名字编译成数组下标，运行时直接读写。</p>
+          </div>
+          <div class="tile">
+            <h3>为什么要有 readyBits</h3>
+            <p>slot 数组保存值，readyBits 保存“这个值是否已经发布”。写 slot 后再 CAS 标记 ready，读节点先检查 ready。</p>
+          </div>
+          <div class="tile">
+            <h3>为什么要有 terminalPath</h3>
+            <p>图中可能存在与 terminal 无关的旁支。terminalPath 用于判断失败是否应该让整个执行结果失败。</p>
+          </div>
+        </div>
+
+        <div class="panel" style="margin-top:18px">
+          <h3>从源码看编排器的几个关键字段</h3>
+          <div class="matrix">
+            <table>
+              <thead>
+                <tr>
+                  <th>字段 / 类型</th>
+                  <th>所在类</th>
+                  <th>它解决的问题</th>
+                  <th>理解方式</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>List&lt;AsyncStep&lt;C&gt;&gt;</code></td>
+                  <td><code>AsyncPipelineBuilder</code></td>
+                  <td>保存线性步骤，build 时按顺序组合。</td>
+                  <td>链表式编排。</td>
+                </tr>
+                <tr>
+                  <td><code>Map&lt;String, NodeDefinition&gt;</code></td>
+                  <td><code>SlotAsyncGraphBuilder</code></td>
+                  <td>保存用户声明的节点图。</td>
+                  <td>构建期的源 AST。</td>
+                </tr>
+                <tr>
+                  <td><code>SlotSymbolTable</code></td>
+                  <td><code>SlotAsyncGraphBuilder / SlotAsyncGraph</code></td>
+                  <td>把人类可读 slot 名转换成运行时 int id。</td>
+                  <td>符号表，类似编译器。</td>
+                </tr>
+                <tr>
+                  <td><code>RuntimeNode[]</code></td>
+                  <td><code>SlotAsyncGraph</code></td>
+                  <td>运行期不再查 Map，直接按数组索引访问节点。</td>
+                  <td>编译后的执行计划。</td>
+                </tr>
+                <tr>
+                  <td><code>int[][] dependentsByNode</code></td>
+                  <td><code>SlotAsyncGraph</code></td>
+                  <td>节点完成后快速知道要通知哪些下游节点。</td>
+                  <td>反向邻接表。</td>
+                </tr>
+                <tr>
+                  <td><code>int[] remainingDependencies</code></td>
+                  <td><code>GraphFrame</code></td>
+                  <td>每次执行独立记录每个节点还有多少上游没完成。</td>
+                  <td>ready 调度计数器。</td>
+                </tr>
+                <tr>
+                  <td><code>Object[] slots</code></td>
+                  <td><code>SlotState</code></td>
+                  <td>保存节点之间传递的中间值。</td>
+                  <td>运行时数据平面。</td>
+                </tr>
+                <tr>
+                  <td><code>AtomicLongArray readyBits</code></td>
+                  <td><code>SlotState</code></td>
+                  <td>跨线程发布 slot 就绪状态。</td>
+                  <td>低成本可见性标记。</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="pipeline" class="section">
+        <div class="section-head">
+          <div>
+            <h2>AsyncPipeline：线性业务流的 fail-fast 链条</h2>
+            <p class="section-intro">
+              Pipeline 适合登录、下单前置校验、按顺序补全上下文这类流程。它本质上把多个 <code>AsyncStep</code>
+              用 <code>CompletableFuture.thenCompose()</code> 串起来：上一步成功，下一步才启动；任何一步失败，后续跳过。
+            </p>
+          </div>
+          <div class="callout">auth demo 现在的链路是：loadUser -> verifyPassword -> issueToken -> LoginResponse。</div>
+        </div>
+
+        <div class="grid cols-2">
+          <div class="panel">
+            <div class="tabs" role="tablist">
+              <button class="tab active" data-tab="pipeline-flow">登录流程</button>
+              <button class="tab" data-tab="pipeline-code">组合代码</button>
+              <button class="tab" data-tab="pipeline-errors">失败语义</button>
+            </div>
+            <div id="pipeline-flow" class="tab-panel active">
+              <div class="timeline">
+                <div class="event"><strong>1. loadUser</strong><br>IO 线程池查询 MySQL，查不到用户抛出 <code>BizException</code>。</div>
+                <div class="event"><strong>2. verifyPassword</strong><br>CPU 线程池执行 BCrypt 校验，密码错误时 fail-fast。</div>
+                <div class="event"><strong>3. issueToken</strong><br>CPU 线程池调用 <code>JwtUtils.createToken</code> 生成 HS256 JWT。</div>
+                <div class="event"><strong>4. build response</strong><br>Controller 通过 WebFlux <code>Mono.fromFuture</code> 返回异步结果。</div>
+              </div>
+            </div>
+            <div id="pipeline-code" class="tab-panel">
+              <pre class="code-block"><span class="kw">return</span> <span class="kw">new</span> AsyncPipelineBuilder&lt;LoginContext&gt;()
+    .addStep(loadUser)
+    .addStep(verifyPassword)
+    .addStep(issueToken)
+    .build();
+
+<span class="comment">// AsyncStep.then 的核心语义</span>
+ctx -&gt; this.apply(ctx).thenCompose(next::apply)</pre>
+            </div>
+            <div id="pipeline-errors" class="tab-panel">
+              <ul>
+                <li>前置步骤失败，后续步骤不会运行。</li>
+                <li>异常会沿着 <code>CompletableFuture</code> 链传播到 Controller。</li>
+                <li>demo 中由 <code>GlobalExceptionHandler</code> 把 <code>BizException</code> 转成 400 响应。</li>
+                <li>如果线程池饱和且策略是 <code>ABORT</code>，调用方得到明确的拒绝异常。</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>Pipeline 心智模型</h3>
+            <svg viewBox="0 0 760 300" width="100%" role="img" aria-label="AsyncPipeline 执行图">
+              <defs>
+                <marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#5b6b7a"></path>
+                </marker>
+              </defs>
+              <rect x="20" y="48" width="128" height="70" rx="8" fill="#eef8f6" stroke="#2f855a"></rect>
+              <text x="84" y="78" text-anchor="middle" font-weight="800">Context</text>
+              <text x="84" y="100" text-anchor="middle" font-size="12" fill="#5b6b7a">username/password</text>
+              <rect x="210" y="38" width="132" height="90" rx="8" fill="#eaf2fb" stroke="#2b6cb0"></rect>
+              <text x="276" y="72" text-anchor="middle" font-weight="800">loadUser</text>
+              <text x="276" y="98" text-anchor="middle" font-size="12" fill="#5b6b7a">IO</text>
+              <rect x="404" y="38" width="132" height="90" rx="8" fill="#fff7e8" stroke="#b7791f"></rect>
+              <text x="470" y="72" text-anchor="middle" font-weight="800">verify</text>
+              <text x="470" y="98" text-anchor="middle" font-size="12" fill="#5b6b7a">CPU</text>
+              <rect x="598" y="38" width="132" height="90" rx="8" fill="#fff7e8" stroke="#b7791f"></rect>
+              <text x="664" y="72" text-anchor="middle" font-weight="800">issueToken</text>
+              <text x="664" y="98" text-anchor="middle" font-size="12" fill="#5b6b7a">CPU</text>
+              <line x1="148" y1="83" x2="210" y2="83" stroke="#5b6b7a" stroke-width="2" marker-end="url(#arrow2)"></line>
+              <line x1="342" y1="83" x2="404" y2="83" stroke="#5b6b7a" stroke-width="2" marker-end="url(#arrow2)"></line>
+              <line x1="536" y1="83" x2="598" y2="83" stroke="#5b6b7a" stroke-width="2" marker-end="url(#arrow2)"></line>
+              <path d="M275 128 C275 200 470 200 470 128" fill="none" stroke="#c53030" stroke-width="2" stroke-dasharray="6 6"></path>
+              <text x="372" y="214" text-anchor="middle" font-size="13" fill="#c53030">任何一步异常：后续跳过，Future 异常完成</text>
+              <rect x="512" y="212" width="170" height="46" rx="8" fill="#ffffff" stroke="#d8e0e7"></rect>
+              <text x="597" y="241" text-anchor="middle" font-size="13" fill="#17212b">LoginResponse(token)</text>
+            </svg>
+          </div>
+        </div>
+      </section>
+
+      <section id="dag" class="section">
+        <div class="section-head">
+          <div>
+            <h2>SlotAsyncGraph：并行 DAG 的编译期安全和运行期低开销</h2>
+            <p class="section-intro">
+              DAG 适合报价预览这类“多个上游并行，最后汇总”的业务。Agelina 的特色是把符号槽名编译成整数 slot id，
+              运行时用 <code>Object[] slots</code> 和 <code>AtomicLongArray readyBits</code> 传递中间值。
+            </p>
+          </div>
+          <div class="callout">点击图里的节点，右侧会显示该节点读写哪些 slot。按“播放执行”可以看 quote DAG 的完成顺序。</div>
+        </div>
+
+        <div class="dag-board">
+          <div class="dag-stage">
+            <div class="hero-actions" style="margin-bottom:12px">
+              <button class="button primary" id="playDag">播放执行</button>
+              <button class="button" id="resetDag">重置</button>
+            </div>
+            <svg id="dagSvg" viewBox="0 0 900 560" width="100%" role="img" aria-label="Quote DAG 可交互图">
+              <defs>
+                <marker id="dagArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#8a98a6"></path>
+                </marker>
+              </defs>
+              <path d="M176 98 C254 98 254 70 334 70" fill="none" stroke="#8a98a6" stroke-width="2" marker-end="url(#dagArrow)"></path>
+              <path d="M176 98 C254 98 254 174 334 174" fill="none" stroke="#8a98a6" stroke-width="2" marker-end="url(#dagArrow)"></path>
+              <path d="M176 98 C254 98 254 278 334 278" fill="none" stroke="#8a98a6" stroke-width="2" marker-end="url(#dagArrow)"></path>
+              <path d="M486 174 C548 174 548 150 612 150" fill="none" stroke="#8a98a6" stroke-width="2" marker-end="url(#dagArrow)"></path>
+              <path d="M486 278 C548 278 548 150 612 150" fill="none" stroke="#8a98a6" stroke-width="2" marker-end="url(#dagArrow)"></path>
+              <path d="M486 278 C548 278 548 298 612 298" fill="none" stroke="#8a98a6" stroke-width="2" marker-end="url(#dagArrow)"></path>
+              <path d="M176 98 C398 98 420 298 612 298" fill="none" stroke="#8a98a6" stroke-width="2" marker-end="url(#dagArrow)"></path>
+              <path d="M486 70 C690 70 704 440 728 440" fill="none" stroke="#8a98a6" stroke-width="2" marker-end="url(#dagArrow)"></path>
+              <path d="M486 174 C684 174 704 440 728 440" fill="none" stroke="#8a98a6" stroke-width="2" marker-end="url(#dagArrow)"></path>
+              <path d="M486 278 C684 278 704 440 728 440" fill="none" stroke="#8a98a6" stroke-width="2" marker-end="url(#dagArrow)"></path>
+              <path d="M764 150 C804 150 804 412 728 440" fill="none" stroke="#8a98a6" stroke-width="2" marker-end="url(#dagArrow)"></path>
+              <path d="M764 298 C804 298 804 432 728 440" fill="none" stroke="#8a98a6" stroke-width="2" marker-end="url(#dagArrow)"></path>
+
+              <g class="dag-node" data-node="validateRequest" transform="translate(40 62)">
+                <rect width="136" height="72" rx="8" fill="#eef8f6" stroke="#2f855a"></rect>
+                <text x="68" y="31" text-anchor="middle" font-size="13" font-weight="800">validateRequest</text>
+                <text x="68" y="53" text-anchor="middle" font-size="11" fill="#5b6b7a">DIRECT</text>
+              </g>
+              <g class="dag-node" data-node="loadInventory" transform="translate(334 34)">
+                <rect width="152" height="72" rx="8" fill="#eaf2fb" stroke="#2b6cb0"></rect>
+                <text x="76" y="31" text-anchor="middle" font-size="13" font-weight="800">loadInventory</text>
+                <text x="76" y="53" text-anchor="middle" font-size="11" fill="#5b6b7a">IO</text>
+              </g>
+              <g class="dag-node" data-node="loadMemberProfile" transform="translate(334 138)">
+                <rect width="152" height="72" rx="8" fill="#eaf2fb" stroke="#2b6cb0"></rect>
+                <text x="76" y="31" text-anchor="middle" font-size="13" font-weight="800">loadMemberProfile</text>
+                <text x="76" y="53" text-anchor="middle" font-size="11" fill="#5b6b7a">IO</text>
+              </g>
+              <g class="dag-node" data-node="loadProductAndBaseAmount" transform="translate(310 242)">
+                <rect width="176" height="72" rx="8" fill="#eaf2fb" stroke="#2b6cb0"></rect>
+                <text x="88" y="27" text-anchor="middle" font-size="12" font-weight="800">loadProductAnd</text>
+                <text x="88" y="44" text-anchor="middle" font-size="12" font-weight="800">BaseAmount</text>
+                <text x="88" y="61" text-anchor="middle" font-size="11" fill="#5b6b7a">IO patch</text>
+              </g>
+              <g class="dag-node" data-node="calculateMemberDiscount" transform="translate(612 114)">
+                <rect width="152" height="72" rx="8" fill="#fff7e8" stroke="#b7791f"></rect>
+                <text x="76" y="28" text-anchor="middle" font-size="12" font-weight="800">calculateMember</text>
+                <text x="76" y="45" text-anchor="middle" font-size="12" font-weight="800">Discount</text>
+                <text x="76" y="62" text-anchor="middle" font-size="11" fill="#5b6b7a">CPU</text>
+              </g>
+              <g class="dag-node" data-node="calculateCouponDiscount" transform="translate(612 262)">
+                <rect width="152" height="72" rx="8" fill="#fff7e8" stroke="#b7791f"></rect>
+                <text x="76" y="28" text-anchor="middle" font-size="12" font-weight="800">calculateCoupon</text>
+                <text x="76" y="45" text-anchor="middle" font-size="12" font-weight="800">Discount</text>
+                <text x="76" y="62" text-anchor="middle" font-size="11" fill="#5b6b7a">CPU</text>
+              </g>
+              <g class="dag-node" data-node="buildQuote" transform="translate(728 404)">
+                <rect width="132" height="72" rx="8" fill="#eef8f6" stroke="#2f855a"></rect>
+                <text x="66" y="31" text-anchor="middle" font-size="13" font-weight="800">buildQuote</text>
+                <text x="66" y="53" text-anchor="middle" font-size="11" fill="#5b6b7a">TERMINAL</text>
+              </g>
+            </svg>
+          </div>
+
+          <div class="panel">
+            <h3 id="dagTitle">validateRequest</h3>
+            <p id="dagDesc"></p>
+            <div class="grid cols-2">
+              <div>
+                <h4>读取 slots</h4>
+                <div class="tag-row" id="dagReads"></div>
+              </div>
+              <div>
+                <h4>写入 slots</h4>
+                <div class="tag-row" id="dagWrites"></div>
+              </div>
+            </div>
+            <h4 style="margin-top:18px">运行期 slot 状态</h4>
+            <div class="slot-grid" id="slotGrid"></div>
+          </div>
+        </div>
+
+        <div class="grid cols-3" style="margin-top:18px">
+          <div class="tile">
+            <h3>构建期校验</h3>
+            <p>builder 会拒绝重复节点、缺失依赖、环、重复写 slot、读 slot 没有依赖路径，以及 terminal 后面继续挂下游节点。</p>
+          </div>
+          <div class="tile">
+            <h3>运行期帧</h3>
+            <p>每次 <code>execute()</code> 创建独立 <code>GraphFrame</code>：包含 slot 数组、readyBits、remainingDependencies 和 terminalResult。</p>
+          </div>
+          <div class="tile">
+            <h3>低开销数据通路</h3>
+            <p>节点完成时写 <code>slots[id]</code>，CAS 标记 ready bit，下游直接按 int id 读取，避免热路径 Map 查找。</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="spring" class="section">
+        <div class="section-head">
+          <div>
+            <h2>Spring 集成：starter 把执行基础设施放进容器</h2>
+            <p class="section-intro">
+              <code>threadpool-spring-boot-starter</code> 依赖 autoconfigure 模块。引入 starter 后，
+              Spring Boot 自动发布线程池、注册表、dispatcher、step factory、decorator 链和 <code>@AsyncStepBean</code> 扫描器。
+            </p>
+          </div>
+          <div class="callout">当前实现中，注解步骤会懒加载 <code>AsyncStepFactory</code> 并应用 <code>CompositeStepDecorator</code>。</div>
+        </div>
+
+        <div class="grid cols-2">
+          <div class="panel">
+            <h3>自动配置 Bean 流程</h3>
+            <div class="timeline">
+              <div class="event"><strong>ThreadPoolProperties</strong><br>绑定 <code>threadpool.async.io/cpu</code> 配置并做启动校验。</div>
+              <div class="event"><strong>ioExecutor / cpuExecutor</strong><br>通过 <code>ThreadPoolFactory</code> 创建命名线程池。</div>
+              <div class="event"><strong>ExecutorRegistry</strong><br>保存 <code>ExecutionMode.IO/CPU</code> 到 executor 的不可变映射。</div>
+              <div class="event"><strong>DefaultExecutionDispatcher</strong><br>实现普通 step 和 DAG node 的分发。</div>
+              <div class="event"><strong>AsyncStepFactory</strong><br>把 <code>StepDefinition</code> 转换成可执行 step。</div>
+              <div class="event"><strong>AsyncStepBeanPostProcessor</strong><br>扫描 <code>@AsyncStepBean</code> 方法并注册 <code>stepDefinition.*</code> 与 <code>asyncStep.*</code>。</div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>@AsyncStepBean 动态注册</h3>
+            <pre class="code-block"><span class="comment">// 业务代码只写方法</span>
+@AsyncStepBean(name = <span class="str">"loadUser"</span>, mode = ExecutionMode.IO)
+public LoginContext loadUser(LoginContext ctx) { ... }
+
+<span class="comment">// 容器启动后自动出现</span>
+stepDefinition.loadUser
+asyncStep.loadUser
+
+<span class="comment">// asyncStep 会经过 CompositeStepDecorator</span>
+decorator.decorate(<span class="str">"loadUser"</span>, step)</pre>
+            <p>这意味着业务方可以用代码式 builder，也可以通过注解把步骤发布为可注入 Bean。</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="demos" class="section">
+        <div class="section-head">
+          <div>
+            <h2>Demo 业务流：只作为编排模型的落地参照</h2>
+            <p class="section-intro">
+              这一节不是重点，只用来把前面的编排概念落到真实入口上：
+              登录 demo 对应线性链，报价 demo 对应 DAG ready 调度。真正要理解的还是
+              <code>AsyncPipeline</code> 和 <code>SlotAsyncGraph</code> 的编排机制。
+            </p>
+          </div>
+          <div class="callout">如果你的目标是改框架，demo 只需要扫一遍入口和 FlowFactory，不必陷入业务细节。</div>
+        </div>
+
+        <div class="grid cols-2">
+          <div class="panel">
+            <h3>threadpool-auth-demo</h3>
+            <p><code>POST /auth/login</code>，默认端口 <code>8080</code>，依赖 MySQL 初始化用户 <code>demo / 123456</code>。</p>
+            <div class="timeline">
+              <div class="event">Controller 用 <code>Mono.fromFuture</code> 桥接 WebFlux 和 CompletableFuture。</div>
+              <div class="event">Service 创建初始 <code>LoginContext</code>。</div>
+              <div class="event">Pipeline 查询用户、校验 BCrypt、生成 JWT。</div>
+              <div class="event">响应 <code>LoginResponse(username, token)</code>。</div>
+            </div>
+          </div>
+          <div class="panel">
+            <h3>threadpool-dag-demo</h3>
+            <p><code>POST /quotes/preview</code>，默认端口 <code>8081</code>，内存模拟商品、库存、会员资料网关。</p>
+            <div class="timeline">
+              <div class="event">validateRequest 标准化 userId、sku、couponCode。</div>
+              <div class="event">库存、会员、商品信息并行加载。</div>
+              <div class="event">会员折扣和优惠券折扣在 CPU 池计算。</div>
+              <div class="event">terminal 组装 <code>QuoteResponse</code>。</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="matrix" style="margin-top:18px">
+          <table>
+            <thead>
+              <tr>
+                <th>Demo</th>
+                <th>入口</th>
+                <th>编排模型</th>
+                <th>关键上下文</th>
+                <th>你应该观察什么</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>auth</td>
+                <td><code>AuthController.login</code></td>
+                <td><code>AsyncPipeline</code></td>
+                <td><code>LoginContext</code></td>
+                <td>线性 fail-fast、线程池切换、JWT 生成</td>
+              </tr>
+              <tr>
+                <td>quote</td>
+                <td><code>QuoteController.preview</code></td>
+                <td><code>SlotAsyncGraph</code></td>
+                <td><code>QuoteContext</code></td>
+                <td>并行 IO、slot 读写、terminal 汇总</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="runtime" class="section">
+        <div class="section-head">
+          <div>
+            <h2>运行与压测：怎么把项目拉起来观察</h2>
+            <p class="section-intro">
+              这个仓库可以通过 Maven 单独跑 demo，也有根目录 <code>docker-compose.yml</code> 启动 DAG demo 和 wrk 压测容器。
+            </p>
+          </div>
+          <div class="callout">如果只是学习源码，先跑 <code>mvn test</code>；如果要观察并发和背压，跑 DAG demo + wrk。</div>
+        </div>
+        <div class="grid cols-3">
+          <div class="tile">
+            <h3>测试</h3>
+            <pre class="code-block">cd threadpool
+mvn test</pre>
+            <p>覆盖框架、DAG、插件注册、自动配置和 quote limiter。</p>
+          </div>
+          <div class="tile">
+            <h3>单独启动 demo</h3>
+            <pre class="code-block">mvn -pl threadpool-auth-demo spring-boot:run
+mvn -pl threadpool-dag-demo spring-boot:run</pre>
+            <p>auth 需要 MySQL；dag demo 使用内存模拟网关。</p>
+          </div>
+          <div class="tile">
+            <h3>Compose + wrk</h3>
+            <pre class="code-block">docker compose up --build
+docker exec -it wrk-tester sh</pre>
+            <p>压测脚本在 <code>scripts/wrk-quote.lua</code>。</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="source" class="section">
+        <div class="section-head">
+          <div>
+            <h2>源码索引：按问题定位文件</h2>
+            <p class="section-intro">
+              如果你想深入理解编排，不要从所有文件平铺看起。下面的索引按“编排器要解决的问题”组织，
+              可以搜索拓扑、slot、dispatcher、remainingDependencies、readyBits 等关键词。
+            </p>
+          </div>
+          <div class="callout">推荐搜索顺序：<code>builder</code>、<code>validation</code>、<code>runtime</code>、<code>readyBits</code>、<code>dispatcher</code>。</div>
+        </div>
+
+        <div class="search">
+          <input id="sourceSearch" type="search" placeholder="搜索编排源码，例如 SlotAsyncGraph、remainingDependencies、readyBits、dispatcher">
+          <button class="button" id="clearSearch">清空</button>
+        </div>
+        <div class="matrix">
+          <table id="sourceTable">
+            <thead>
+              <tr>
+                <th>主题</th>
+                <th>文件</th>
+                <th>要看什么</th>
+                <th>关键词</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="learn" class="section">
+        <div class="section-head">
+          <div>
+            <h2>推荐阅读路线：从会用到看懂内部</h2>
+            <p class="section-intro">
+              这条路线按照“业务入口 -> 抽象 -> 运行时 -> Spring 集成 -> 性能/背压”展开，比较不容易在类之间迷路。
+            </p>
+          </div>
+          <div class="callout">如果只想快速上手，读 1 到 4；如果要改框架核心，读完 8。</div>
+        </div>
+        <div class="timeline">
+          <div class="event"><strong>1. README.md</strong><br>先建立项目定位：两种编排模型、五个模块、两个 demo。</div>
+          <div class="event"><strong>2. QuoteFlowFactory</strong><br>直接看最完整的 DAG 业务配置，理解节点依赖和 slot 名。</div>
+          <div class="event"><strong>3. SlotAsyncGraphBuilder</strong><br>看 build 阶段如何验证拓扑、slot writer、读槽闭包和 terminal 出口。</div>
+          <div class="event"><strong>4. SlotAsyncGraph</strong><br>看运行期 GraphFrame、remainingDependencies、readyBits 和 completeNode。</div>
+          <div class="event"><strong>5. LoginFlowFactory</strong><br>回到线性 Pipeline，理解顺序编排和 fail-fast。</div>
+          <div class="event"><strong>6. DefaultExecutionDispatcher</strong><br>理解 IO/CPU/DIRECT 如何落到 executor。</div>
+          <div class="event"><strong>7. ThreadPoolAutoConfiguration</strong><br>看 Spring Boot 怎么发布基础设施 Bean。</div>
+          <div class="event"><strong>8. docs-architect/</strong><br>再读线程池隔离、背压、C4 和 SlotAsyncGraph 编译器深潜。</div>
+        </div>
+      </section>
+
+      <footer class="footer">
+        生成文件：<code>agelina-visual-guide.html</code>。本页为自包含静态 HTML，可离线打开；内容基于当前仓库 README、docs 与源码结构整理。
+      </footer>
+    </main>
+  </div>
+
+  <script>
+    const modules = [
+      {
+        id: "framework",
+        title: "threadpool-framework",
+        short: "核心执行与编排原语",
+        desc: "框架最核心的模块，包含 ExecutionMode、ExecutorRegistry、AsyncPipeline、SlotAsyncGraph、slot patch、plugin registry 和 decorator 抽象。",
+        jobs: ["定义步骤和上下文流转模型", "根据 ExecutionMode 分发任务", "构建和执行 slot-based DAG", "提供插件和装饰器扩展点"],
+        files: ["executor/DefaultExecutionDispatcher.java", "pipeline/AsyncPipeline.java", "pipeline/SlotAsyncGraph.java", "pipeline/SlotAsyncGraphBuilder.java", "pipeline/SlotPatch.java"],
+        tags: ["core", "pipeline", "dag", "slots", "dispatcher"]
+      },
+      {
+        id: "autoconfigure",
+        title: "threadpool-spring-boot-autoconfigure",
+        short: "Spring Boot 自动配置",
+        desc: "把 framework 的基础设施装配进 Spring 容器，并扫描 @AsyncStepBean 方法动态注册 StepDefinition 和 AsyncStep Bean。",
+        jobs: ["绑定 threadpool.async 配置", "创建 IO/CPU 线程池", "发布 dispatcher 和 AsyncStepFactory", "注册注解步骤并应用装饰器"],
+        files: ["ThreadPoolAutoConfiguration.java", "ThreadPoolProperties.java", "AsyncStepBeanPostProcessor.java", "META-INF/spring/...AutoConfiguration.imports"],
+        tags: ["spring", "starter", "bean", "autoconfig"]
+      },
+      {
+        id: "starter",
+        title: "threadpool-spring-boot-starter",
+        short: "面向应用的入口依赖",
+        desc: "典型 starter 模块，应用只需要依赖它，就能获得 framework 与 autoconfigure。",
+        jobs: ["聚合依赖", "暴露稳定集成入口", "降低业务项目接入成本"],
+        files: ["threadpool-spring-boot-starter/pom.xml", "ThreadPoolStarterMarker.java"],
+        tags: ["starter", "dependency", "integration"]
+      },
+      {
+        id: "auth",
+        title: "threadpool-auth-demo",
+        short: "AsyncPipeline 登录示例",
+        desc: "展示线性登录链路：查用户、校验密码、签发 JWT、返回 LoginResponse。",
+        jobs: ["演示 Pipeline 组装", "展示 IO/CPU 模式切换", "连接 MySQL 用户表", "通过 WebFlux 返回异步响应"],
+        files: ["AuthController.java", "AuthService.java", "LoginFlowFactory.java", "UserRepository.java", "JwtUtils.java"],
+        tags: ["demo", "auth", "pipeline", "jwt", "mysql"]
+      },
+      {
+        id: "dagdemo",
+        title: "threadpool-dag-demo",
+        short: "SlotAsyncGraph 报价示例",
+        desc: "展示报价预览 DAG：校验请求后并行加载库存、会员和商品，再计算折扣，最后汇总 QuoteResponse。",
+        jobs: ["演示 DAG 并行依赖", "演示 symbolic slot", "演示多 slot patch 写入", "提供限流和异常处理示例"],
+        files: ["QuoteController.java", "QuoteService.java", "QuoteFlowFactory.java", "QuotePreviewLimiter.java", "ProductCatalogGateway.java"],
+        tags: ["demo", "dag", "quote", "slots", "limiter"]
+      }
+    ];
+
+    const dagNodes = {
+      validateRequest: {
+        title: "validateRequest",
+        desc: "标准化请求上下文，校验数量必须为正。它是 DAG 的根节点，完成后其他 IO 节点开始并行。",
+        reads: ["context"],
+        writes: ["validatedContext"],
+        ready: ["validatedContext"]
+      },
+      loadInventory: {
+        title: "loadInventory",
+        desc: "读取 validatedContext 中的 sku，模拟库存网关调用，写入 availableStock。",
+        reads: ["validatedContext"],
+        writes: ["availableStock"],
+        ready: ["validatedContext", "availableStock"]
+      },
+      loadMemberProfile: {
+        title: "loadMemberProfile",
+        desc: "读取 userId，模拟会员资料网关调用，写入 memberLevel。",
+        reads: ["validatedContext"],
+        writes: ["memberLevel"],
+        ready: ["validatedContext", "memberLevel"]
+      },
+      loadProductAndBaseAmount: {
+        title: "loadProductAndBaseAmount",
+        desc: "读取 sku 和 quantity，加载商品信息，并通过 SymbolicSlotPatch 一次写入 productName、unitPrice、baseAmount。",
+        reads: ["validatedContext"],
+        writes: ["productName", "unitPrice", "baseAmount"],
+        ready: ["validatedContext", "productName", "unitPrice", "baseAmount"]
+      },
+      calculateMemberDiscount: {
+        title: "calculateMemberDiscount",
+        desc: "依赖商品金额和会员等级，在 CPU 池计算会员折扣。",
+        reads: ["baseAmount", "memberLevel"],
+        writes: ["memberDiscount"],
+        ready: ["validatedContext", "productName", "unitPrice", "baseAmount", "memberLevel", "memberDiscount"]
+      },
+      calculateCouponDiscount: {
+        title: "calculateCouponDiscount",
+        desc: "依赖商品金额和标准化请求，在 CPU 池计算优惠券折扣。",
+        reads: ["baseAmount", "validatedContext"],
+        writes: ["couponDiscount"],
+        ready: ["validatedContext", "productName", "unitPrice", "baseAmount", "couponDiscount"]
+      },
+      buildQuote: {
+        title: "buildQuote",
+        desc: "terminal 节点读取所有必要 slot，装配最终 QuoteContext / QuoteResponse。构建器保证 terminal 是图出口。",
+        reads: ["validatedContext", "availableStock", "memberLevel", "productName", "unitPrice", "baseAmount", "memberDiscount", "couponDiscount"],
+        writes: ["terminalResult"],
+        ready: ["validatedContext", "availableStock", "memberLevel", "productName", "unitPrice", "baseAmount", "memberDiscount", "couponDiscount", "terminalResult"]
+      }
+    };
+
+    const slots = [
+      ["0", "validatedContext", "QuoteContext"],
+      ["1", "availableStock", "Integer"],
+      ["2", "memberLevel", "String"],
+      ["3", "productName", "String"],
+      ["4", "unitPrice", "BigDecimal"],
+      ["5", "baseAmount", "BigDecimal"],
+      ["6", "memberDiscount", "BigDecimal"],
+      ["7", "couponDiscount", "BigDecimal"],
+      ["T", "terminalResult", "QuoteContext"]
+    ];
+
+    const sourceRows = [
+      ["执行模式", "threadpool-framework/src/main/java/com/yeven/thread/framework/executor/ExecutionMode.java", "IO / CPU / DIRECT 的语义边界。", "mode executor thread"],
+      ["任务分发", "threadpool-framework/src/main/java/com/yeven/thread/framework/executor/DefaultExecutionDispatcher.java", "普通 step 和 DAG node 如何提交到 executor，异常如何回传。", "dispatcher future node rejection"],
+      ["线程池创建", "threadpool-framework/src/main/java/com/yeven/thread/framework/executor/ThreadPoolFactory.java", "命名线程、队列类型、拒绝策略接入点。", "thread pool queue"],
+      ["Pipeline", "threadpool-framework/src/main/java/com/yeven/thread/framework/pipeline/AsyncPipeline.java", "如何把步骤串成线性链。", "pipeline thenCompose"],
+      ["Step 工厂", "threadpool-framework/src/main/java/com/yeven/thread/framework/pipeline/AsyncStepFactory.java", "StepDefinition 如何变成 AsyncStep。", "factory step definition"],
+      ["DAG builder", "threadpool-framework/src/main/java/com/yeven/thread/framework/pipeline/SlotAsyncGraphBuilder.java", "拓扑排序、slot 合约、读槽闭包、terminal 出口校验。", "dag builder validation slot"],
+      ["DAG runtime", "threadpool-framework/src/main/java/com/yeven/thread/framework/pipeline/SlotAsyncGraph.java", "GraphFrame、readyBits、remainingDependencies、completeNode。", "dag runtime readyBits"],
+      ["slot patch", "threadpool-framework/src/main/java/com/yeven/thread/framework/pipeline/SlotPatch.java", "多 slot 写入的数据结构。", "slot patch"],
+      ["符号槽", "threadpool-framework/src/main/java/com/yeven/thread/framework/pipeline/SlotSymbolTable.java", "slot symbol 到 int id 的映射。", "symbol slot table"],
+      ["Spring 自动配置", "threadpool-spring-boot-autoconfigure/src/main/java/com/yeven/thread/spring/boot/autoconfigure/ThreadPoolAutoConfiguration.java", "发布线程池、dispatcher、factory、decorator、BPP。", "spring autoconfig bean"],
+      ["配置校验", "threadpool-spring-boot-autoconfigure/src/main/java/com/yeven/thread/spring/boot/autoconfigure/ThreadPoolProperties.java", "队列容量、线程数、拒绝策略的启动期校验。", "properties rejection"],
+      ["注解步骤", "threadpool-spring-boot-autoconfigure/src/main/java/com/yeven/thread/spring/boot/autoconfigure/AsyncStepBeanPostProcessor.java", "@AsyncStepBean 扫描和动态注册。", "annotation bean post processor"],
+      ["登录流程", "threadpool-auth-demo/src/main/java/com/yeven/thread/demo/auth/flow/LoginFlowFactory.java", "loadUser -> verifyPassword -> issueToken。", "auth login pipeline jwt"],
+      ["报价 DAG", "threadpool-dag-demo/src/main/java/com/yeven/thread/dag/demo/quote/flow/QuoteFlowFactory.java", "完整 quote DAG 的节点、slot 和依赖。", "quote dag slot"],
+      ["报价限流", "threadpool-dag-demo/src/main/java/com/yeven/thread/dag/demo/quote/service/QuotePreviewLimiter.java", "Semaphore 并发限制和释放语义。", "limiter semaphore"],
+      ["压测脚本", "scripts/wrk-quote.lua", "wrk 对 quote preview 的请求模板。", "wrk benchmark quote"]
+    ];
+
+    function renderModules(activeId = "framework") {
+      const list = document.getElementById("moduleList");
+      list.innerHTML = modules.map(m => `
+        <button class="module-btn ${m.id === activeId ? "active" : ""}" data-module="${m.id}">
+          <strong>${m.title}</strong>
+          <span>${m.short}</span>
+        </button>
+      `).join("");
+      list.querySelectorAll("button").forEach(button => {
+        button.addEventListener("click", () => renderModules(button.dataset.module));
+      });
+      const module = modules.find(m => m.id === activeId);
+      document.getElementById("moduleTitle").textContent = module.title;
+      document.getElementById("moduleDesc").textContent = module.desc;
+      document.getElementById("moduleJobs").innerHTML = module.jobs.map(item => `<li>${item}</li>`).join("");
+      document.getElementById("moduleFiles").innerHTML = module.files.map(item => `<li><code>${item}</code></li>`).join("");
+      document.getElementById("moduleTags").innerHTML = module.tags.map(tag => `<span class="tag">${tag}</span>`).join("");
+    }
+
+    function renderDag(nodeId = "validateRequest") {
+      const node = dagNodes[nodeId];
+      document.getElementById("dagTitle").textContent = node.title;
+      document.getElementById("dagDesc").textContent = node.desc;
+      document.getElementById("dagReads").innerHTML = node.reads.map(s => `<span class="tag">${s}</span>`).join("");
+      document.getElementById("dagWrites").innerHTML = node.writes.map(s => `<span class="tag">${s}</span>`).join("");
+      document.querySelectorAll(".dag-node").forEach(el => {
+        el.classList.toggle("active", el.dataset.node === nodeId);
+        el.classList.remove("dim");
+      });
+      renderSlots(node.ready);
+    }
+
+    function renderSlots(ready = []) {
+      const readySet = new Set(ready);
+      document.getElementById("slotGrid").innerHTML = slots.map(([index, name, type]) => `
+        <div class="slot ${readySet.has(name) ? "ready" : ""}">
+          <span class="index">${index}</span>
+          <strong>${name}</strong>
+          <span class="value">${readySet.has(name) ? type : "not ready"}</span>
+        </div>
+      `).join("");
+    }
+
+    function renderSourceRows(filter = "") {
+      const q = filter.trim().toLowerCase();
+      const tbody = document.querySelector("#sourceTable tbody");
+      tbody.innerHTML = sourceRows
+        .filter(row => row.join(" ").toLowerCase().includes(q))
+        .map(row => `
+          <tr>
+            <td>${row[0]}</td>
+            <td><code>${row[1]}</code></td>
+            <td>${row[2]}</td>
+            <td>${row[3].split(" ").map(t => `<span class="tag">${t}</span>`).join(" ")}</td>
+          </tr>
+        `).join("");
+    }
+
+    function setupTabs() {
+      document.querySelectorAll(".tab").forEach(tab => {
+        tab.addEventListener("click", () => {
+          const parent = tab.closest(".panel");
+          parent.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+          parent.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+          tab.classList.add("active");
+          parent.querySelector("#" + tab.dataset.tab).classList.add("active");
+        });
+      });
+    }
+
+    function setupDag() {
+      document.querySelectorAll(".dag-node").forEach(el => {
+        el.addEventListener("click", () => renderDag(el.dataset.node));
+      });
+      const order = ["validateRequest", "loadInventory", "loadMemberProfile", "loadProductAndBaseAmount", "calculateMemberDiscount", "calculateCouponDiscount", "buildQuote"];
+      let timer = null;
+      document.getElementById("playDag").addEventListener("click", () => {
+        clearInterval(timer);
+        let i = 0;
+        document.querySelectorAll(".dag-node").forEach(el => el.classList.remove("done"));
+        timer = setInterval(() => {
+          const id = order[i];
+          renderDag(id);
+          document.querySelector(`[data-node="${id}"]`).classList.add("done");
+          i += 1;
+          if (i >= order.length) {
+            clearInterval(timer);
+          }
+        }, 850);
+      });
+      document.getElementById("resetDag").addEventListener("click", () => {
+        clearInterval(timer);
+        document.querySelectorAll(".dag-node").forEach(el => el.classList.remove("done"));
+        renderDag("validateRequest");
+      });
+    }
+
+    function setupSearch() {
+      const input = document.getElementById("sourceSearch");
+      input.addEventListener("input", () => renderSourceRows(input.value));
+      document.getElementById("clearSearch").addEventListener("click", () => {
+        input.value = "";
+        renderSourceRows("");
+        input.focus();
+      });
+    }
+
+    function setupNavHighlight() {
+      const links = [...document.querySelectorAll(".nav a")];
+      const sections = links.map(a => document.querySelector(a.getAttribute("href"))).filter(Boolean);
+      const observer = new IntersectionObserver(entries => {
+        entries.forEach(entry => {
+          if (!entry.isIntersecting) return;
+          links.forEach(a => a.classList.toggle("active", a.getAttribute("href") === "#" + entry.target.id));
+        });
+      }, { rootMargin: "-35% 0px -55% 0px", threshold: 0.01 });
+      sections.forEach(section => observer.observe(section));
+    }
+
+    renderModules();
+    renderDag();
+    renderSourceRows();
+    setupTabs();
+    setupDag();
+    setupSearch();
+    setupNavHighlight();
+  </script>
+</body>
+</html>

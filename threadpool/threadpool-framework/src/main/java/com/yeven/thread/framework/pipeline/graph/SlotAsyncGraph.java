@@ -1,18 +1,9 @@
-package com.yeven.thread.framework.graph;
+package com.yeven.thread.framework.pipeline.graph;
 
-import com.yeven.thread.framework.factory.AsyncStepFactory;
-import com.yeven.thread.framework.table.SlotSymbolTable;
-import com.yeven.thread.framework.definition.SlotAsyncGraphNodeDefinition;
-import com.yeven.thread.framework.hook.SlotGraphMetricsRecorder;
-import com.yeven.thread.framework.hook.NoopSlotGraphMetricsRecorder;
-import com.yeven.thread.framework.constant.ExecutionMode;
-import com.yeven.thread.framework.constant.SlotNodeRole;
+import com.yeven.thread.framework.pipeline.core.AsyncStepFactory;
 import com.yeven.thread.framework.pipeline.slot.ReadOnlySlotContextView;
 import com.yeven.thread.framework.pipeline.slot.SlotPatch;
-import com.yeven.thread.framework.runtime.RuntimeNode;
-import com.yeven.thread.framework.runtime.SlotState;
-import com.yeven.thread.framework.runtime.GraphFrame;
-
+import com.yeven.thread.framework.pipeline.slot.SlotSymbolTable;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.util.Arrays;
@@ -22,30 +13,24 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLongArray;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * 基于插槽（Slot）的高性能不可变异步有向无环图（DAG）执行器。
  *
  * <p>
- * <b>设计必要性与核心价值：</b>
+ * 核心设计思想是在运行期避免使用复杂的 Map（如 ConcurrentHashMap）进行槽数据的读取与写入，
+ * 从而消除哈希计算与锁竞争。其运行时数据路径如下：
  * </p>
- * <ul>
- * <li><b>消除运行时并发锁与哈希开销：</b> 传统 DAG 执行器采用并发 Map（如
- * {@code ConcurrentHashMap}）作为上下文或临时数据的容器，并在节点间传递数据。这会引入显着的哈希计算开销、内存分配以及潜在的锁争用。本类在设计上使用固定大小的原生
- * {@code Object[] slots} 数组和无锁并发位集 {@code readyBits}，通过整型索引存取数据，使热路径（Hot
- * Path）的读写操作达到 O(1) 的超高性能。</li>
- * <li><b>无堆分配（Zero-Heap-Allocation）调度逻辑：</b> 与为每个节点创建包装
- * {@code CompletableFuture} 的方案相比，本执行器配合 {@link AsyncStepFactory} 使用低开销的
- * {@link com.yeven.thread.framework.executor.NodeCompletion}
- * 回调，直接与底层线程池进行事件驱动的交互，极大减轻了高频调用时的内存垃圾回收（GC）开销。</li>
- * <li><b>基于 VarHandle 的轻量级依赖削减：</b>
- * 将各节点的拓扑关系和入度在图编译期（构造时）预先计算并固化在不可变数组中。在运行期节点执行结束时，使用
- * {@link java.lang.invoke.VarHandle}
- * 对整型计数器数组进行原子减一（CAS）操作，以安全、轻量、无锁地触发后续节点的并发调度。</li>
- * <li><b>智能 Fail-Fast 机制：</b>
- * 通过编译期计算出的终点必经路径（{@code terminalPath}），如果非必经路径上的节点发生失败，不影响主流程；若必经路径上的关键节点执行出现异常，则立即触发
- * DAG 异常结束，提供极佳 of 的响应效率与容错隔离性。</li>
- * </ul>
+ *
+ * <pre>
+ * 1) 节点执行完后，将输出数据写入 {@code Object[] slots} 数组的特定索引槽位中；
+ * 2) 通过无锁并发位集 {@code
+ * readyBits
+ * } 原子标记该插槽数据的可用性；
+ * 3) 下游节点通过整型索引直接、低开销地读取所需的槽数据。
+ * </pre>
  *
  * @param <C> 基础上下文类型
  */
@@ -115,15 +100,13 @@ public final class SlotAsyncGraph<C> {
      * @return 最终由终点节点解析后输出的上下文 Future
      */
     public CompletableFuture<C> execute(C initialContext) {
-        // [生命周期帧初始化]：为本次 DAG 图的单独执行创建全新的 GraphFrame 运行帧，
-        // 隔离多次运行间的状态，其中包含专有的插槽存储区及当前执行计数器数组。
+        // 创建代表本次 DAG 运行生命周期的 GraphFrame 运行帧
         GraphFrame<C> frame = new GraphFrame<>(
                 initialContext,
                 symbolTable,
                 symbolTable.slotCount(),
                 initialRemainingDependencies);
-        // [零入度根节点激活]：遍历查找所有入度依赖数为 0 的根节点，作为图执行的并发入口，
-        // 立即开始分发调度。这些节点将并发启动并在不同的线程中运行。
+        // 遍历所有节点，找出没有任何入度依赖（即初始依赖数为 0）的根节点，开始分发执行
         for (int nodeIndex = 0; nodeIndex < nodes.length; nodeIndex++) {
             if (initialRemainingDependencies[nodeIndex] == 0) {
                 dispatchNode(nodeIndex, frame);
@@ -134,8 +117,6 @@ public final class SlotAsyncGraph<C> {
 
     private void dispatchNode(int nodeIndex, GraphFrame<C> frame) {
         RuntimeNode<C> node = nodes[nodeIndex];
-        // [免指标测量调度通道]：当指标记录器处于 Noop 空操作状态时，直接走极速通道，
-        // 避免了时间戳获取（System.nanoTime()）与测量对象的额外分配，实现极致的吞吐性能。
         if (metricsRecorder == NoopSlotGraphMetricsRecorder.INSTANCE) {
             stepFactory.dispatchNode(
                     node.mode(),
@@ -144,16 +125,12 @@ public final class SlotAsyncGraph<C> {
             return;
         }
 
-        // [带指标测量调度通道]：需要统计并记录各个节点的等待队列耗时与实际执行耗时。
-        // 通过 started 标记以及 readyNanos 起始时间，精确测算任务在线程池排队以及真实运行的时长。
         long readyNanos = System.nanoTime();
         AtomicBoolean started = new AtomicBoolean(false);
         stepFactory.dispatchNode(
                 node.mode(),
                 () -> executeMeasuredNode(node, frame, readyNanos, started),
                 error -> {
-                    // 若节点在提交线程池排队或准备阶段就发生异常（例如线程池拒绝执行），
-                    // 并且任务未能真正开始（started == false），则及时记录失败的指标。
                     if (error != null && !started.get()) {
                         metricsRecorder.recordNode(
                                 node.name(),
@@ -205,16 +182,14 @@ public final class SlotAsyncGraph<C> {
      */
     private void completeNode(int nodeIndex, GraphFrame<C> frame, Throwable error) {
         if (error != null) {
-            // [Fail-Fast 异常短路]：如果节点发生异常，并且该节点处于到达终点节点的必经路径上（terminalPath），
-            // 则直接标记当前运行帧的整个结果 CompletableFuture 为异常完成，使客户端能以最快速度感知到不可恢复的错误。
+            // 如果节点执行发生异常，且该节点在通往终点的路径上，则直接令整个 DAG Future 异常结束
             if (terminalPath[nodeIndex]) {
                 frame.result.completeExceptionally(error);
             }
             return;
         }
 
-        // [出口节点判定与完结]：若当前执行完毕的节点正好是指定的 DAG 终点节点，
-        // 则从终端结果容器中取出汇聚后的上下文结果，正式完成整个 DAG 流水线的 CompletableFuture。
+        // 如果是终点节点执行完成，获取其输出的上下文并完成整个 DAG Flow
         if (nodeIndex == terminalNodeIndex) {
             C result = frame.terminalResult.get();
             if (result == null) {
@@ -225,18 +200,16 @@ public final class SlotAsyncGraph<C> {
             frame.result.complete(result);
         }
 
-        // [无锁下游激活与依赖递减]：遍历当前节点完成后需要通知的所有下游依赖节点，
-        // 使用 VarHandle 对下游节点的入度计数器进行原子递减，返回旧值。
+        // 遍历所有依赖当前节点的下游节点，将其未完成的依赖数减 1
         for (int dependentIndex : dependentsByNode[nodeIndex]) {
-            // 原子减 1 操作（无锁 CAS），确保多线程并发更新依赖计数时的线程安全性与内存可见性
+            // 利用 VarHandle 对 int 数组元素进行原子减 1 操作（无锁 CAS），返回减 1 前的旧值
             int previous = (int) INT_ARRAY_HANDLE.getAndAdd(frame.remainingDependencies, dependentIndex, -1);
             int remaining = previous - 1;
-            // [依赖就绪判定]：当依赖计数器正好减至 0，说明该下游节点的所有前置拓扑条件全部达成，
-            // 立即分发该下游节点，驱动图继续向前流转。
+            // 如果减 1 后剩余依赖数为 0，说明该下游节点的所有前置条件全部就绪，立即分发执行该节点
             if (remaining == 0) {
                 dispatchNode(dependentIndex, frame);
             } else if (remaining < 0) {
-                // 如果计数器下溢为负数，表明出现了系统级的计数逻辑错误，强行中断并反馈异常
+                // 出现负数说明依赖计数器发生下溢，属于系统级逻辑错误
                 frame.result.completeExceptionally(new IllegalStateException(
                         "Node '" + nodes[dependentIndex].name() + "' dependency count underflow"));
             }
@@ -285,6 +258,104 @@ public final class SlotAsyncGraph<C> {
                         "Node '" + node.name() + "' writes undeclared slot " + symbolTable.describe(slotId));
             }
             slotState.writeSlot(slotId, patch.valueAt(i));
+        }
+    }
+
+    /**
+     * 运行期状态存储，维护每个插槽（Slot）的具体数据以及就绪状态的位集。
+     */
+    private static final class SlotState {
+
+        // 存储实际插槽值的 Object 数组
+        private final Object[] slots;
+        // 基于 AtomicLongArray 的无锁就绪标记位集。每个 Long 占用 64 位，对应 64 个插槽的状态
+        private final AtomicLongArray readyBits;
+
+        private SlotState(int slotCount) {
+            this.slots = new Object[slotCount];
+            // 计算需要多少个 Long 来表示 slotCount 个位（向上取整除以 64）
+            this.readyBits = new AtomicLongArray((slotCount + 63) >>> 6);
+        }
+
+        /**
+         * 检查指定的插槽 ID 数据是否已写入就绪。
+         */
+        private boolean hasSlot(int slotId) {
+            int wordIndex = slotId >>> 6; // 相当于 slotId / 64
+            long mask = 1L << (slotId & 63); // 相当于 1L << (slotId % 64)
+            return (readyBits.get(wordIndex) & mask) != 0L;
+        }
+
+        /**
+         * 获取指定插槽 ID 的值。
+         */
+        private Object slot(int slotId) {
+            return slots[slotId];
+        }
+
+        /**
+         * 向指定插槽 ID 写入值，并将其标记为就绪状态。
+         */
+        private void writeSlot(int slotId, Object value) {
+            slots[slotId] = value;
+            markReady(slotId);
+        }
+
+        /**
+         * 在位集中原子的将指定的插槽 ID 标记为就绪（无锁 CAS 自旋更新位图）。
+         */
+        private void markReady(int slotId) {
+            int wordIndex = slotId >>> 6;
+            long mask = 1L << (slotId & 63);
+            while (true) {
+                long current = readyBits.get(wordIndex);
+                long next = current | mask;
+                // 如果当前位已经为 1，或者通过 CAS 成功将该位置为 1，则退出循环
+                if (current == next || readyBits.compareAndSet(wordIndex, current, next)) {
+                    return;
+                }
+            }
+        }
+    }
+
+    private record RuntimeNode<C>(
+            String name,
+            int[] dependencyIndexes,
+            com.yeven.thread.framework.constant.ExecutionMode mode,
+            int[] readSlots,
+            int[] declaredWriteSlotsSorted,
+            int singleWriteSlot,
+            SlotNodeRole role,
+            java.util.function.Function<ReadOnlySlotContextView<C>, Object> slotEvaluator,
+            java.util.function.Function<ReadOnlySlotContextView<C>, SlotPatch> patchEvaluator,
+            java.util.function.Function<ReadOnlySlotContextView<C>, C> terminalEvaluator) {
+        private static <C> RuntimeNode<C> from(
+                SlotAsyncGraphNodeDefinition<C> definition,
+                Map<String, Integer> nodeIndexByName) {
+            int[] sortedWriteSlots = definition.getDeclaredWriteSlots();
+            Arrays.sort(sortedWriteSlots);
+            int[] dependencyIndexes = new int[definition.getDependencies().size()];
+            for (int i = 0; i < dependencyIndexes.length; i++) {
+                String dependency = definition.getDependencies().get(i);
+                Integer dependencyIndex = nodeIndexByName.get(dependency);
+                if (dependencyIndex == null) {
+                    throw new IllegalStateException(
+                            "Node '" + definition.getName() + "' references unknown dependency '" + dependency + "'");
+                }
+                dependencyIndexes[i] = dependencyIndex;
+            }
+            int singleWriteSlot = definition.getSlotEvaluator() == null ? -1 : sortedWriteSlots[0];
+            return new RuntimeNode<>(
+                    definition.getName(),
+                    dependencyIndexes,
+                    definition.getMode(),
+                    definition.getReadSlots(),
+                    sortedWriteSlots,
+                    singleWriteSlot,
+                    definition.getRole(),
+                    definition.getSlotEvaluator(),
+                    definition.getPatchEvaluator(),
+                    definition.getTerminalEvaluator());
         }
     }
 
@@ -367,5 +438,66 @@ public final class SlotAsyncGraph<C> {
             }
         }
         return terminalPath;
+    }
+
+    private static final class GraphFrame<C> {
+
+        private final SlotState slotState;
+        private final RuntimeSlotView<C> view;
+        private final AtomicReference<C> terminalResult = new AtomicReference<>();
+        private final int[] remainingDependencies;
+        private final CompletableFuture<C> result = new CompletableFuture<>();
+
+        private GraphFrame(
+                C initialContext,
+                SlotSymbolTable symbolTable,
+                int slotCount,
+                int[] initialRemainingDependencies) {
+            this.slotState = new SlotState(slotCount);
+            this.view = new RuntimeSlotView<>(initialContext, slotState, symbolTable);
+            this.remainingDependencies = Arrays.copyOf(
+                    initialRemainingDependencies,
+                    initialRemainingDependencies.length);
+        }
+    }
+
+    private record RuntimeSlotView<C>(
+            C context,
+            SlotState slotState,
+            SlotSymbolTable symbolTable) implements ReadOnlySlotContextView<C> {
+
+        @Override
+        public boolean hasSlot(int slotId) {
+            validateSlotRange(slotId);
+            return slotState.hasSlot(slotId);
+        }
+
+        @Override
+        public boolean hasSlot(String slotSymbol) {
+            Objects.requireNonNull(slotSymbol, "slotSymbol");
+            return hasSlot(symbolTable.slotIdOf(slotSymbol));
+        }
+
+        @Override
+        public Object slot(int slotId) {
+            validateSlotRange(slotId);
+            if (!slotState.hasSlot(slotId)) {
+                throw new IllegalStateException("Slot not ready: " + symbolTable.describe(slotId));
+            }
+            return slotState.slot(slotId);
+        }
+
+        @Override
+        public Object slot(String slotSymbol) {
+            Objects.requireNonNull(slotSymbol, "slotSymbol");
+            return slot(symbolTable.slotIdOf(slotSymbol));
+        }
+
+        private void validateSlotRange(int slotId) {
+            if (slotId < 0 || slotId >= symbolTable.slotCount()) {
+                throw new IllegalArgumentException(
+                        "slot id out of range: " + slotId + ", slotCount=" + symbolTable.slotCount());
+            }
+        }
     }
 }

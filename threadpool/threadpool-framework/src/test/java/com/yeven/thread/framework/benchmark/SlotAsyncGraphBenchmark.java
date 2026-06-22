@@ -6,8 +6,8 @@ import com.yeven.thread.framework.executor.ExecutorRegistry;
 import com.yeven.thread.framework.factory.AsyncStepFactory;
 import com.yeven.thread.framework.graph.SlotAsyncGraph;
 import com.yeven.thread.framework.graph.SlotAsyncGraphBuilder;
-import com.yeven.thread.framework.pipeline.ReadOnlySlotContextView;
-import com.yeven.thread.framework.pipeline.SlotPatch;
+import com.yeven.thread.framework.pipeline.slot.ReadOnlySlotContextView;
+import com.yeven.thread.framework.pipeline.slot.SlotPatch;
 import com.yeven.thread.framework.table.SlotSymbolTable;
 
 import org.openjdk.jmh.annotations.*;

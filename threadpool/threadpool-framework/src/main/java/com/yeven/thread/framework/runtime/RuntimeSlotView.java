@@ -1,6 +1,6 @@
 package com.yeven.thread.framework.runtime;
 
-import com.yeven.thread.framework.pipeline.ReadOnlySlotContextView;
+import com.yeven.thread.framework.pipeline.slot.ReadOnlySlotContextView;
 import com.yeven.thread.framework.table.SlotSymbolTable;
 import java.util.Objects;
 

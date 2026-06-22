@@ -7,12 +7,12 @@ import com.yeven.thread.demo.common.model.User;
 import com.yeven.thread.demo.util.JwtUtils;
 import com.yeven.thread.framework.constant.ExecutionMode;
 import com.yeven.thread.framework.decorator.CompositeStepDecorator;
-import com.yeven.thread.framework.definition.StepDefinition;
-import com.yeven.thread.framework.factory.AsyncStepFactory;
-import com.yeven.thread.framework.pipeline.AsyncPipeline;
-import com.yeven.thread.framework.pipeline.AsyncPipelineBuilder;
-import com.yeven.thread.framework.pipeline.AsyncStep;
-
+import com.yeven.thread.framework.constant.ExecutionMode;
+import com.yeven.thread.framework.pipeline.linear.AsyncPipeline;
+import com.yeven.thread.framework.pipeline.linear.AsyncPipelineBuilder;
+import com.yeven.thread.framework.pipeline.core.AsyncStep;
+import com.yeven.thread.framework.pipeline.core.AsyncStepFactory;
+import com.yeven.thread.framework.pipeline.core.StepDefinition;
 import org.springframework.security.crypto.bcrypt.BCrypt;
 import org.springframework.stereotype.Component;
 

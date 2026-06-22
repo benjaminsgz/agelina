@@ -1,6 +1,6 @@
 package com.yeven.thread.framework.decorator;
 
-import com.yeven.thread.framework.pipeline.AsyncStep;
+import com.yeven.thread.framework.pipeline.core.AsyncStep;
 import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.Collections;

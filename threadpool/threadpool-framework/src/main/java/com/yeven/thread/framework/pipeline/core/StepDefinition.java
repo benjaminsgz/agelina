@@ -1,17 +1,13 @@
-package com.yeven.thread.framework.definition;
+package com.yeven.thread.framework.pipeline.core;
 
 import com.yeven.thread.framework.constant.ExecutionMode;
-import com.yeven.thread.framework.pipeline.core.AsyncStep;
 import java.util.function.Function;
 
 /**
  * 构建 {@link AsyncStep} 的声明式元数据定义类。
- * 
- * <p><b>设计必要性与核心价值：</b></p>
- * <ul>
- *   <li><b>配置与执行隔离：</b> 将“具体执行什么业务逻辑（{@code handler}）”与“具体在哪里运行（{@code mode}）”在逻辑和元数据定义层彻底解耦，提供了高度灵活的线程路由控制。</li>
- *   <li><b>支持切面与动态修饰：</b> 作为描述单步任务的最小完备元数据单元，它可以极其方便地被各类步骤装饰器（例如性能日志记录、重试逻辑、安全审计等 {@link com.yeven.thread.framework.decorator.StepDecorator}）进行拦截和加工包装，而无需侵入底层步骤实现本身。</li>
- * </ul>
+ *
+ * <p>该类将“执行什么逻辑”（{@code handler}）与“在哪个线程池执行”（{@code mode}）进行了清晰的解耦分离，
+ * 从而保证了框架对线程路由配置的高灵活性与数据驱动特性。</p>
  *
  * @param <C> 管道上下文类型
  */

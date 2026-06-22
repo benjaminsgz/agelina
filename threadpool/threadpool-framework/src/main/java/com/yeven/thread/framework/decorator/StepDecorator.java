@@ -1,6 +1,6 @@
 package com.yeven.thread.framework.decorator;
 
-import com.yeven.thread.framework.pipeline.AsyncStep;
+import com.yeven.thread.framework.pipeline.core.AsyncStep;
 
 /**
  * 步骤装饰器接口，用于在 {@link AsyncStep} 执行前后织入横切关注点（Cross-cutting Behavior）。

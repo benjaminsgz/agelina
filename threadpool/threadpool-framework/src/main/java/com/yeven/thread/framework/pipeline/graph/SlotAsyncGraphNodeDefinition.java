@@ -1,7 +1,6 @@
-package com.yeven.thread.framework.definition;
+package com.yeven.thread.framework.pipeline.graph;
 
 import com.yeven.thread.framework.constant.ExecutionMode;
-import com.yeven.thread.framework.constant.SlotNodeRole;
 import com.yeven.thread.framework.pipeline.slot.ReadOnlySlotContextView;
 import com.yeven.thread.framework.pipeline.slot.SlotPatch;
 import java.util.Arrays;
@@ -11,16 +10,14 @@ import java.util.function.Function;
 
 /**
  * 基于插槽异步有向无环图（DAG）执行器的声明式节点定义类。
- * 
- * <p><b>设计必要性与核心价值：</b></p>
- * <ul>
- *   <li><b>元数据承载与规约：</b> 封装了单个 DAG 节点的核心配置（名称、执行模式、前置节点依赖、需要读取与声明写入的插槽）。它是构建期与编译期用来分析依赖闭包、写冲突和环路检测的唯一静态数据源。</li>
- *   <li><b>支持多种求值器（Evaluators）：</b> 支持单插槽值求值、多插槽 Patch 求值以及 Terminal 出口上下文求值，为不同类型的计算提供了灵活的多态静态工厂构建方法。</li>
- * </ul>
+ *
+ * <p>
+ * 该类封装了单个节点的名称、执行模式、前置节点依赖列表、需要读取和声明写入的插槽索引，以及对应的执行处理器。
+ * </p>
  *
  * @param <C> 基础上下文类型
  */
-public final class SlotAsyncGraphNodeDefinition<C> {
+final class SlotAsyncGraphNodeDefinition<C> {
 
     private final String name;
     private final ExecutionMode mode;
@@ -58,7 +55,7 @@ public final class SlotAsyncGraphNodeDefinition<C> {
     /**
      * 静态工厂：创建一个只写入单个插槽的普通节点定义。
      */
-    public static <C> SlotAsyncGraphNodeDefinition<C> slotNode(
+    static <C> SlotAsyncGraphNodeDefinition<C> slotNode(
             String name,
             ExecutionMode mode,
             List<String> dependencies,
@@ -80,7 +77,7 @@ public final class SlotAsyncGraphNodeDefinition<C> {
     /**
      * 静态工厂：创建一个声明写入多个插槽（修补写入）的节点定义。
      */
-    public static <C> SlotAsyncGraphNodeDefinition<C> patchNode(
+    static <C> SlotAsyncGraphNodeDefinition<C> patchNode(
             String name,
             ExecutionMode mode,
             List<String> dependencies,
@@ -102,7 +99,7 @@ public final class SlotAsyncGraphNodeDefinition<C> {
     /**
      * 静态工厂：创建一个作为图终结点的终端节点定义，负责解析和输出最终上下文。
      */
-    public static <C> SlotAsyncGraphNodeDefinition<C> terminalNode(
+    static <C> SlotAsyncGraphNodeDefinition<C> terminalNode(
             String name,
             ExecutionMode mode,
             List<String> dependencies,
@@ -120,39 +117,53 @@ public final class SlotAsyncGraphNodeDefinition<C> {
                 Objects.requireNonNull(evaluator, "evaluator"));
     }
 
-    public String getName() {
+    String getName() {
         return name;
     }
 
-    public ExecutionMode getMode() {
+    ExecutionMode getMode() {
         return mode;
     }
 
-    public List<String> getDependencies() {
+    List<String> getDependencies() {
         return dependencies;
     }
 
-    public int[] getReadSlots() {
+    int[] getReadSlots() {
         return Arrays.copyOf(readSlots, readSlots.length);
     }
 
-    public int[] getDeclaredWriteSlots() {
+    int[] getDeclaredWriteSlots() {
         return Arrays.copyOf(declaredWriteSlots, declaredWriteSlots.length);
     }
 
-    public SlotNodeRole getRole() {
+    SlotNodeRole getRole() {
         return role;
     }
 
-    public Function<ReadOnlySlotContextView<C>, Object> getSlotEvaluator() {
+    Function<ReadOnlySlotContextView<C>, Object> getSlotEvaluator() {
         return slotEvaluator;
     }
 
-    public Function<ReadOnlySlotContextView<C>, SlotPatch> getPatchEvaluator() {
+    Function<ReadOnlySlotContextView<C>, SlotPatch> getPatchEvaluator() {
         return patchEvaluator;
     }
 
-    public Function<ReadOnlySlotContextView<C>, C> getTerminalEvaluator() {
+    Function<ReadOnlySlotContextView<C>, C> getTerminalEvaluator() {
         return terminalEvaluator;
     }
+}
+
+/**
+ * 插槽节点角色枚举。
+ */
+enum SlotNodeRole {
+    /**
+     * 写入一个或多个插槽的中间计算步骤节点。
+     */
+    PATCH,
+    /**
+     * 标志图执行结束并负责构造最终结果的终结点。
+     */
+    TERMINAL
 }
